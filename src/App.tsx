@@ -30,8 +30,78 @@ import {
 } from 'lucide-react';
 
 type TabId = 'perform' | 'synth' | 'mod3d' | 'keys' | 'presets';
+type ThemeMode = 'light' | 'dark';
 
 const STORAGE_KEY = 'shadowflap_echo_v2_custom_presets';
+const THEME_STORAGE_KEY = 'tracktrix_theme_mode';
+
+function renderArcGauge(value: number, label: string, accentDanger = false) {
+  const clamped = Math.max(0, Math.min(1, value));
+  // 220-degree arc from 160deg to 380deg
+  const r = 26;
+  const cx = 34;
+  const cy = 34;
+  const startAngle = (160 * Math.PI) / 180;
+  const totalSweep = (220 * Math.PI) / 180;
+  const endAngle = startAngle + totalSweep;
+  const activeAngle = startAngle + totalSweep * clamped;
+
+  const pt = (ang: number, rad = r) => ({
+    x: cx + rad * Math.cos(ang),
+    y: cy + rad * Math.sin(ang)
+  });
+
+  const s = pt(startAngle);
+  const e = pt(endAngle);
+  const a = pt(activeAngle);
+  const needle = pt(activeAngle, r - 6);
+
+  const bgPath = `M ${s.x.toFixed(2)} ${s.y.toFixed(2)} A ${r} ${r} 0 1 1 ${e.x.toFixed(2)} ${e.y.toFixed(2)}`;
+  const largeArc = totalSweep * clamped > Math.PI ? 1 : 0;
+  const fgPath =
+    clamped > 0.005
+      ? `M ${s.x.toFixed(2)} ${s.y.toFixed(2)} A ${r} ${r} 0 ${largeArc} 1 ${a.x.toFixed(2)} ${a.y.toFixed(2)}`
+      : '';
+
+  return (
+    <div className="flex items-center gap-3 px-3 py-2.5 rounded-xl bg-[var(--bg-well)] border border-[var(--border-hairline)]">
+      <svg width="68" height="54" viewBox="0 0 68 58" className="shrink-0" aria-hidden="true">
+        <path
+          d={bgPath}
+          fill="none"
+          stroke="var(--border-strong)"
+          strokeWidth="3.5"
+          strokeLinecap="round"
+        />
+        {fgPath && (
+          <path
+            d={fgPath}
+            fill="none"
+            stroke={accentDanger ? 'var(--danger)' : 'var(--accent)'}
+            strokeWidth="3.5"
+            strokeLinecap="round"
+          />
+        )}
+        <line
+          x1={cx}
+          y1={cy}
+          x2={needle.x}
+          y2={needle.y}
+          stroke="var(--text-primary)"
+          strokeWidth="2"
+          strokeLinecap="round"
+        />
+        <circle cx={cx} cy={cy} r="3" fill={accentDanger ? 'var(--danger)' : 'var(--accent)'} />
+      </svg>
+      <div className="flex flex-col min-w-0">
+        <span className="text-[11px] font-medium text-[var(--text-secondary)] truncate">{label}</span>
+        <span className="font-mono-tech text-lg font-semibold text-[var(--text-primary)] leading-tight">
+          {clamped.toFixed(2)}
+        </span>
+      </div>
+    </div>
+  );
+}
 
 export function App() {
   const engineRef = useRef<EchoEngine | null>(null);
@@ -39,6 +109,29 @@ export function App() {
     engineRef.current = new EchoEngine();
   }
   const engine = engineRef.current;
+
+  const [theme, setTheme] = useState<ThemeMode>(() => {
+    try {
+      const saved = localStorage.getItem(THEME_STORAGE_KEY);
+      return saved === 'light' || saved === 'dark' ? saved : 'dark';
+    } catch {
+      return 'dark';
+    }
+  });
+
+  useEffect(() => {
+    const root = document.documentElement;
+    root.classList.toggle('dark', theme === 'dark');
+    const meta = document.querySelector('meta[name="theme-color"]');
+    if (meta) {
+      meta.setAttribute('content', theme === 'dark' ? '#131210' : '#F5F4EE');
+    }
+    try {
+      localStorage.setItem(THEME_STORAGE_KEY, theme);
+    } catch {
+      // ignore storage errors
+    }
+  }, [theme]);
 
   const [activeTab, setActiveTab] = useState<TabId>('perform');
   const [isRunning, setIsRunning] = useState<boolean>(false);
@@ -133,7 +226,7 @@ export function App() {
     await ensureRunning();
     engine.applySeedIdentity(newSeed);
     syncFromEngine('Seeded Mutation');
-    showToast(`Seed Rolled: ${newSeed}`);
+    showToast(`Seed rolled: ${newSeed}`);
   };
 
   const handleMutate = async () => {
@@ -141,30 +234,29 @@ export function App() {
     const nextSeed = seed.split('-')[0] + '-' + Math.floor(100 + Math.random() * 899);
     engine.applySeedIdentity(nextSeed);
     syncFromEngine('Mutated Soundscape');
-    showToast('Soundscape Mutated');
+    showToast('Soundscape mutated');
   };
 
   const handleSeedChange = async (newSeed: string) => {
     await ensureRunning();
     engine.applySeedIdentity(newSeed);
     syncFromEngine();
-    showToast(`Seed Applied: ${newSeed}`);
+    showToast(`Seed applied: ${newSeed}`);
   };
 
   const handleResetAudio = async () => {
     await engine.panicReset();
     syncFromEngine();
-    showToast('Audio Engine Reset');
+    showToast('Audio engine reset');
   };
 
   const handleToggleQualityTier = () => {
     const next: QualityTier = qualityTier === 'high' ? 'mobile' : 'high';
     engine.setQualityTier(next);
     setQualityTier(next);
-    showToast(next === 'mobile' ? 'Mobile Eco DSP (15Hz / EqualPower)' : 'Studio HQ DSP (25Hz / HRTF)');
+    showToast(next === 'mobile' ? 'Mobile Eco DSP (15Hz)' : 'Studio HQ DSP (HRTF)');
   };
 
-  // Update a parameter in a category
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const updateParam = (category: keyof typeof params, key: string, value: any) => {
     engine.setParam(category, key, value);
@@ -181,13 +273,11 @@ export function App() {
     });
   };
 
-  // Update continuous gameplay state
   const updateGameState = (partial: Partial<typeof gameState>) => {
     engine.setState(partial);
     setGameState((prev) => ({ ...prev, ...partial }));
   };
 
-  // XY Pad Pointer Handling
   const handleXYPointer = (e: React.PointerEvent<HTMLDivElement>) => {
     const pad = xyPadRef.current;
     if (!pad) return;
@@ -200,7 +290,6 @@ export function App() {
     });
   };
 
-  // Trigger Discrete Gameplay Event
   const handleTriggerEvent = async (evName: string) => {
     await ensureRunning();
     engine.triggerEvent(evName, { intensity: 0.88 });
@@ -208,10 +297,9 @@ export function App() {
       syncFromEngine('New Game Seed');
     }
     setFlashingEvent(evName);
-    setTimeout(() => setFlashingEvent(null), 240);
+    setTimeout(() => setFlashingEvent(null), 220);
   };
 
-  // Load Preset
   const handleLoadPreset = async (preset: EchoPreset) => {
     await ensureRunning();
     engine.loadPreset(preset);
@@ -220,9 +308,8 @@ export function App() {
     showToast(`Loaded: ${preset.name}`);
   };
 
-  // Save Custom Preset to localStorage
   const handleSaveCustomPreset = () => {
-    const name = customNameInput.trim() || `Dark Patch #${customPresets.length + 1}`;
+    const name = customNameInput.trim() || `Patch #${customPresets.length + 1}`;
     const exported = engine.exportPreset(name, 'custom');
     const updated = [exported, ...customPresets.filter((p) => p.name !== name)];
     setCustomPresets(updated);
@@ -256,12 +343,14 @@ export function App() {
       : allPresets.filter((p) => (p.category || 'custom') === presetFilter);
 
   return (
-    <div className="flex flex-col h-dvh max-w-[760px] mx-auto bg-[#101218] border-x border-[#252a38] select-none overflow-hidden">
-      {/* HEADER + OSCILLOSCOPE / 3D VECTORSCOPE */}
+    <div className="flex flex-col h-dvh w-full max-w-5xl mx-auto bg-[var(--bg-canvas)] md:border-x border-[var(--border-hairline)] select-none overflow-hidden">
+      {/* HEADER + HARDWARE VISUALIZER */}
       <VisualizerHeader
         engine={engine}
         isRunning={isRunning}
         seed={seed}
+        theme={theme}
+        onToggleTheme={() => setTheme((t) => (t === 'dark' ? 'light' : 'dark'))}
         onTogglePower={handleTogglePower}
         onMutate={handleMutate}
         onRollSeed={handleRollSeed}
@@ -269,21 +358,26 @@ export function App() {
         onResetAudio={handleResetAudio}
       />
 
-      {/* MAIN SCROLLABLE WORKSPACE */}
-      <main className="flex-1 overflow-y-auto p-3 flex flex-col gap-3">
+      {/* MAIN SCROLLABLE STUDIO WORKSPACE */}
+      <main className="flex-1 overflow-y-auto p-3 sm:p-5 flex flex-col gap-4">
         {/* ================================================================
             TAB 1: PERFORM & GAMEPLAY SIMULATION
         ================================================================ */}
         {activeTab === 'perform' && (
-          <div className="flex flex-col gap-3">
-            {/* 2D XY MACRO PAD */}
-            <div className="bg-[#161922] border border-[#252a38] rounded-lg p-3 flex flex-col gap-2">
-              <div className="flex justify-between items-center">
-                <span className="font-display-tech text-[11px] font-bold uppercase tracking-wider text-[#7f889f]">
-                  Atmosphere & Tension Matrix (Touch XY)
-                </span>
-                <span className="font-mono-tech text-[10px] text-[#38e2c7]">
-                  T: {gameState.tension.toFixed(2)} | I: {gameState.instability.toFixed(2)}
+          <div className="grid grid-cols-1 md:grid-cols-12 gap-4 items-start">
+            {/* LEFT COLUMN: ATMOSPHERE XY MATRIX + ANALOG GAUGES */}
+            <section className="md:col-span-6 bg-[var(--bg-card)] border border-[var(--border-hairline)] rounded-2xl p-4 flex flex-col gap-3">
+              <div className="flex justify-between items-baseline gap-2">
+                <div>
+                  <h2 className="font-display-tech text-sm font-semibold text-[var(--text-primary)]">
+                    Atmosphere Matrix
+                  </h2>
+                  <p className="text-xs text-[var(--text-secondary)]">
+                    Touch XY modulation field
+                  </p>
+                </div>
+                <span className="font-mono-tech text-xs font-medium text-[var(--text-primary)] bg-[var(--bg-well)] border border-[var(--border-hairline)] rounded-lg px-2.5 py-1">
+                  T {gameState.tension.toFixed(2)} · I {gameState.instability.toFixed(2)}
                 </span>
               </div>
 
@@ -303,200 +397,219 @@ export function App() {
                 }}
                 style={{
                   backgroundImage: `
-                    radial-gradient(circle at ${gameState.tension * 100}% ${(1 - gameState.instability) * 100}%, rgba(184, 134, 255, 0.22) 0%, transparent 60%),
-                    linear-gradient(to right, rgba(255,255,255,0.03) 1px, transparent 1px),
-                    linear-gradient(to bottom, rgba(255,255,255,0.03) 1px, transparent 1px)
+                    radial-gradient(circle at ${gameState.tension * 100}% ${(1 - gameState.instability) * 100}%, var(--accent-soft) 0%, transparent 55%),
+                    linear-gradient(to right, var(--border-hairline) 1px, transparent 1px),
+                    linear-gradient(to bottom, var(--border-hairline) 1px, transparent 1px)
                   `,
-                  backgroundSize: '100% 100%, 20% 20%, 20% 20%'
+                  backgroundSize: '100% 100%, 25% 25%, 25% 25%'
                 }}
-                className="relative w-full h-[170px] bg-[#090b10] border border-[#384157] rounded-lg touch-none overflow-hidden cursor-crosshair"
+                className="relative w-full h-[210px] md:h-[250px] bg-[var(--bg-well)] border border-[var(--border-hairline)] rounded-xl touch-none overflow-hidden cursor-crosshair"
               >
-                <span className="absolute top-1.5 left-2 font-mono-tech text-[9px] text-[#7f889f] pointer-events-none uppercase tracking-wider">
-                  ▲ INSTABILITY / GRAIN CHAOS / RING MOD
+                <span className="absolute top-2.5 left-3 font-mono-tech text-[10px] font-medium text-[var(--text-secondary)] pointer-events-none">
+                  Instability / Chaos ↑
                 </span>
-                <span className="absolute bottom-1.5 right-2 font-mono-tech text-[9px] text-[#7f889f] pointer-events-none uppercase tracking-wider">
-                  TENSION / FILTER / COMB DANGER ►
+                <span className="absolute bottom-2.5 right-3 font-mono-tech text-[10px] font-medium text-[var(--text-secondary)] pointer-events-none">
+                  Tension / Filter →
                 </span>
 
-                {/* Glowing XY Puck */}
+                {/* Concentric Hardware Target Ring */}
                 <div
                   style={{
                     left: `${gameState.tension * 100}%`,
                     top: `${(1 - gameState.instability) * 100}%`
                   }}
-                  className="absolute w-[26px] h-[26px] -ml-[13px] -mt-[13px] rounded-full bg-[#b886ff]/30 border-2 border-[#b886ff] shadow-[0_0_16px_#b886ff] pointer-events-none flex items-center justify-center"
+                  className="absolute w-7 h-7 -ml-3.5 -mt-3.5 rounded-full bg-[var(--bg-card)]/80 border-2 border-[var(--accent)] pointer-events-none flex items-center justify-center shadow-sm"
                 >
-                  <div className="w-2 h-2 rounded-full bg-[#38e2c7]" />
+                  <div className="w-2.5 h-2.5 rounded-full bg-[var(--accent)]" />
                 </div>
               </div>
-            </div>
 
-            {/* DISCRETE GAMEPLAY EVENT TRIGGERS (9 EVENTS) */}
-            <div className="bg-[#161922] border border-[#252a38] rounded-lg p-3">
-              <div className="flex justify-between items-center mb-2.5">
-                <span className="font-display-tech text-[11px] font-bold uppercase tracking-wider text-[#7f889f]">
-                  Discrete Gameplay & Horror Event Triggers
-                </span>
-                <span className="font-mono-tech text-[10px] text-[#b886ff]">
-                  {activePresetName}
-                </span>
+              {/* Analog Dial Gauges (Tension & Instability) */}
+              <div className="grid grid-cols-2 gap-2.5">
+                {renderArcGauge(gameState.tension, 'Tension')}
+                {renderArcGauge(gameState.instability, 'Instability', gameState.instability > 0.72)}
               </div>
+            </section>
 
-              <div className="grid grid-cols-3 gap-2">
-                {[
-                  { id: 'newGame', label: 'NEW GAME', danger: false },
-                  { id: 'portal', label: 'PORTAL WARP', danger: false },
-                  { id: 'approachingObstacle', label: 'APPROACH', danger: false },
-                  { id: 'obstaclePassed', label: 'PASSED', danger: false },
-                  { id: 'sanityDrop', label: 'SANITY DROP', danger: true },
-                  { id: 'stalkerSpawn', label: 'STALKER SPAWN', danger: true },
-                  { id: 'nearMiss', label: 'NEAR MISS', danger: true },
-                  { id: 'collision', label: 'COLLISION', danger: true },
-                  { id: 'gameOver', label: 'GAME OVER', danger: true }
-                ].map((ev) => {
-                  const isFlashing = flashingEvent === ev.id;
-                  return (
-                    <button
-                      key={ev.id}
-                      onClick={() => handleTriggerEvent(ev.id)}
-                      className={`py-2.5 px-2 font-mono-tech text-[10px] font-semibold text-center rounded-md border transition active:scale-95 cursor-pointer ${
-                        ev.danger
-                          ? isFlashing
-                            ? 'border-[#ff4d6d] bg-[#ff4d6d]/25 text-[#ff4d6d]'
-                            : 'bg-[#12151e] border-[#384157] hover:border-[#ff4d6d]/60 text-[#e2e6f0]'
-                          : isFlashing
-                          ? 'border-[#38e2c7] bg-[#38e2c7]/20 text-[#38e2c7]'
-                          : 'bg-[#12151e] border-[#384157] hover:border-[#38e2c7]/60 text-[#e2e6f0]'
-                      }`}
-                    >
-                      {ev.label}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
+            {/* RIGHT COLUMN: EVENT TRIGGERS & STATE VECTORS */}
+            <div className="md:col-span-6 flex flex-col gap-4">
+              {/* EVENT TRIGGERS */}
+              <section className="bg-[var(--bg-card)] border border-[var(--border-hairline)] rounded-2xl p-4">
+                <div className="flex justify-between items-baseline gap-2 mb-3">
+                  <h2 className="font-display-tech text-sm font-semibold text-[var(--text-primary)]">
+                    Event Triggers
+                  </h2>
+                  <span className="text-xs font-medium text-[var(--text-secondary)] truncate max-w-[180px]">
+                    {activePresetName}
+                  </span>
+                </div>
 
-            {/* CONTINUOUS GAMEPLAY STATE VECTORS */}
-            <div className="bg-[#161922] border border-[#252a38] rounded-lg p-3">
-              <div className="flex justify-between items-center mb-2.5">
-                <span className="font-display-tech text-[11px] font-bold uppercase tracking-wider text-[#7f889f]">
-                  Continuous Gameplay State Vectors
-                </span>
-              </div>
+                <div className="grid grid-cols-3 gap-2">
+                  {[
+                    { id: 'newGame', label: 'New Game', danger: false },
+                    { id: 'portal', label: 'Portal Warp', danger: false },
+                    { id: 'approachingObstacle', label: 'Approach', danger: false },
+                    { id: 'obstaclePassed', label: 'Passed', danger: false },
+                    { id: 'sanityDrop', label: 'Sanity Drop', danger: true },
+                    { id: 'stalkerSpawn', label: 'Stalker', danger: true },
+                    { id: 'nearMiss', label: 'Near Miss', danger: true },
+                    { id: 'collision', label: 'Collision', danger: true },
+                    { id: 'gameOver', label: 'Game Over', danger: true }
+                  ].map((ev) => {
+                    const isFlashing = flashingEvent === ev.id;
+                    return (
+                      <button
+                        key={ev.id}
+                        onClick={() => handleTriggerEvent(ev.id)}
+                        className={`min-h-[44px] py-2 px-2 text-xs font-semibold text-center rounded-xl border transition-all active:scale-[0.97] cursor-pointer whitespace-nowrap truncate ${
+                          ev.danger
+                            ? isFlashing
+                              ? 'border-[var(--danger)] bg-[var(--danger-soft)] text-[var(--danger)]'
+                              : 'bg-[var(--bg-well)] border-[var(--border-hairline)] hover:border-[var(--danger)] text-[var(--text-primary)]'
+                            : isFlashing
+                            ? 'border-[var(--accent)] bg-[var(--accent-soft)] text-[var(--accent)]'
+                            : 'bg-[var(--bg-well)] border-[var(--border-hairline)] hover:border-[var(--accent)] text-[var(--text-primary)]'
+                        }`}
+                      >
+                        {ev.label}
+                      </button>
+                    );
+                  })}
+                </div>
+              </section>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div className="flex flex-col gap-1">
-                  <div className="flex justify-between font-mono-tech text-[11px]">
-                    <span className="text-[#e2e6f0]">Tension (Filter / FM / Comb)</span>
-                    <span className="text-[#38e2c7]">{gameState.tension.toFixed(2)}</span>
+              {/* STATE VECTORS */}
+              <section className="bg-[var(--bg-card)] border border-[var(--border-hairline)] rounded-2xl p-4">
+                <div className="flex justify-between items-baseline mb-3">
+                  <h2 className="font-display-tech text-sm font-semibold text-[var(--text-primary)]">
+                    State Vectors
+                  </h2>
+                  <span className="font-mono-tech text-[11px] text-[var(--text-secondary)]">
+                    Continuous Macro
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-3">
+                  <div className="flex flex-col gap-1">
+                    <div className="flex justify-between text-xs">
+                      <span className="font-medium text-[var(--text-primary)]">Tension</span>
+                      <span className="font-mono-tech text-[var(--accent)]">
+                        {gameState.tension.toFixed(2)}
+                      </span>
+                    </div>
+                    <input
+                      type="range"
+                      min={0}
+                      max={1}
+                      step={0.01}
+                      value={gameState.tension}
+                      onChange={(e) => updateGameState({ tension: parseFloat(e.target.value) })}
+                      className="synth-slider"
+                    />
                   </div>
-                  <input
-                    type="range"
-                    min={0}
-                    max={1}
-                    step={0.01}
-                    value={gameState.tension}
-                    onChange={(e) => updateGameState({ tension: parseFloat(e.target.value) })}
-                    className="synth-slider"
-                  />
-                </div>
 
-                <div className="flex flex-col gap-1">
-                  <div className="flex justify-between font-mono-tech text-[11px]">
-                    <span className="text-[#e2e6f0]">Instability (Detune / Grain Jitter)</span>
-                    <span className="text-[#38e2c7]">{gameState.instability.toFixed(2)}</span>
+                  <div className="flex flex-col gap-1">
+                    <div className="flex justify-between text-xs">
+                      <span className="font-medium text-[var(--text-primary)]">Instability</span>
+                      <span className="font-mono-tech text-[var(--accent)]">
+                        {gameState.instability.toFixed(2)}
+                      </span>
+                    </div>
+                    <input
+                      type="range"
+                      min={0}
+                      max={1}
+                      step={0.01}
+                      value={gameState.instability}
+                      onChange={(e) => updateGameState({ instability: parseFloat(e.target.value) })}
+                      className="synth-slider"
+                    />
                   </div>
-                  <input
-                    type="range"
-                    min={0}
-                    max={1}
-                    step={0.01}
-                    value={gameState.instability}
-                    onChange={(e) => updateGameState({ instability: parseFloat(e.target.value) })}
-                    className="synth-slider"
-                  />
-                </div>
 
-                <div className="flex flex-col gap-1">
-                  <div className="flex justify-between font-mono-tech text-[11px]">
-                    <span className="text-[#e2e6f0]">Progression (Harmonic Pitch Shift)</span>
-                    <span className="text-[#38e2c7]">{gameState.progression.toFixed(2)}</span>
+                  <div className="flex flex-col gap-1">
+                    <div className="flex justify-between text-xs">
+                      <span className="font-medium text-[var(--text-primary)]">Progression</span>
+                      <span className="font-mono-tech text-[var(--accent)]">
+                        {gameState.progression.toFixed(2)}
+                      </span>
+                    </div>
+                    <input
+                      type="range"
+                      min={0}
+                      max={1}
+                      step={0.01}
+                      value={gameState.progression}
+                      onChange={(e) => updateGameState({ progression: parseFloat(e.target.value) })}
+                      className="synth-slider"
+                    />
                   </div>
-                  <input
-                    type="range"
-                    min={0}
-                    max={1}
-                    step={0.01}
-                    value={gameState.progression}
-                    onChange={(e) => updateGameState({ progression: parseFloat(e.target.value) })}
-                    className="synth-slider cyan-slider"
-                  />
-                </div>
 
-                <div className="flex flex-col gap-1">
-                  <div className="flex justify-between font-mono-tech text-[11px]">
-                    <span className="text-[#e2e6f0]">Proximity (3D Orbit Closing In)</span>
-                    <span className="text-[#ff4d6d]">{gameState.proximity.toFixed(2)}</span>
+                  <div className="flex flex-col gap-1">
+                    <div className="flex justify-between text-xs">
+                      <span className="font-medium text-[var(--text-primary)]">Proximity</span>
+                      <span className="font-mono-tech text-[var(--danger)]">
+                        {gameState.proximity.toFixed(2)}
+                      </span>
+                    </div>
+                    <input
+                      type="range"
+                      min={0}
+                      max={1}
+                      step={0.01}
+                      value={gameState.proximity}
+                      onChange={(e) => updateGameState({ proximity: parseFloat(e.target.value) })}
+                      className="synth-slider danger-slider"
+                    />
                   </div>
-                  <input
-                    type="range"
-                    min={0}
-                    max={1}
-                    step={0.01}
-                    value={gameState.proximity}
-                    onChange={(e) => updateGameState({ proximity: parseFloat(e.target.value) })}
-                    className="synth-slider danger-slider"
-                  />
                 </div>
-              </div>
+              </section>
             </div>
           </div>
         )}
 
         {/* ================================================================
-            TAB 2: SYNTH, GRANULAR CLOUD & RESONANT HORROR FILTERS
+            TAB 2: SYNTH, GRANULAR, MODAL & WAVETABLE ENGINE
         ================================================================ */}
         {activeTab === 'synth' && (
-          <div className="flex flex-col gap-3">
-            {/* CORE SOUNDSCAPE TEXTURE & HIGH-IMPACT CONTROLS */}
-            <div className="bg-[#161922] border border-[#252a38] rounded-lg p-3">
-              <div className="flex justify-between items-center mb-2.5">
-                <span className="font-display-tech text-[11px] font-bold uppercase tracking-wider text-[#b886ff]">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 items-start">
+            {/* GRANULAR & TEXTURE ENGINE */}
+            <section className="bg-[var(--bg-card)] border border-[var(--border-hairline)] rounded-2xl p-4">
+              <div className="flex justify-between items-center mb-3">
+                <h2 className="font-display-tech text-sm font-semibold text-[var(--text-primary)]">
                   Granular & Texture Engine
-                </span>
+                </h2>
                 <button
                   onClick={() => updateParam('granular', 'enabled', !params.granular.enabled)}
-                  className={`px-2.5 py-0.5 rounded font-mono-tech text-[10px] font-bold border cursor-pointer ${
+                  className={`px-3 py-1 rounded-lg font-mono-tech text-[11px] font-semibold border cursor-pointer transition-colors whitespace-nowrap ${
                     params.granular.enabled
-                      ? 'bg-[#38e2c7]/20 border-[#38e2c7] text-[#38e2c7]'
-                      : 'bg-[#090b10] border-[#384157] text-[#7f889f]'
+                      ? 'bg-[var(--accent)] border-[var(--accent)] text-[var(--accent-fg)]'
+                      : 'bg-[var(--bg-well)] border-[var(--border-hairline)] text-[var(--text-secondary)]'
                   }`}
                 >
-                  {params.granular.enabled ? 'GRAINS ACTIVE' : 'GRAINS BYPASSED'}
+                  {params.granular.enabled ? 'Active' : 'Bypassed'}
                 </button>
               </div>
 
-              {/* 8 Grain / Soundscape Textures */}
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5 mb-3">
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5 mb-4">
                 {(
                   [
-                    { id: 'metallic', label: 'METALLIC SCRAPE' },
-                    { id: 'choir', label: 'SPECTRAL CHOIR' },
-                    { id: 'subterranean', label: 'SUBTERRANEAN' },
-                    { id: 'glitch', label: 'FRACTAL GLITCH' },
-                    { id: 'tape', label: 'TAPE & TEST GEAR' },
-                    { id: 'hypnotic', label: 'HYPNOSIS DUB' },
-                    { id: 'liquid', label: 'LIQUID ALCHEMY' },
-                    { id: 'modal', label: 'MODAL PLATE' }
+                    { id: 'metallic', label: 'Metallic' },
+                    { id: 'choir', label: 'Choir' },
+                    { id: 'subterranean', label: 'Sub-Abyss' },
+                    { id: 'glitch', label: 'Glitch' },
+                    { id: 'tape', label: 'Tape Gear' },
+                    { id: 'hypnotic', label: 'Hypnosis' },
+                    { id: 'liquid', label: 'Liquid' },
+                    { id: 'modal', label: 'Modal Plate' }
                   ] as { id: GrainTextureType; label: string }[]
                 ).map((tex) => (
                   <button
                     key={tex.id}
                     onClick={() => updateParam('granular', 'texture', tex.id)}
-                    className={`py-1.5 px-1.5 rounded font-mono-tech text-[9px] font-semibold border transition cursor-pointer ${
+                    className={`min-h-[38px] py-1.5 px-2 rounded-xl text-[11px] font-semibold border transition-colors cursor-pointer whitespace-nowrap truncate ${
                       params.granular.texture === tex.id
-                        ? 'bg-[#b886ff]/20 border-[#b886ff] text-[#b886ff]'
-                        : 'bg-[#090b10] border-[#252a38] text-[#7f889f] hover:text-[#e2e6f0]'
+                        ? 'bg-[var(--active-chip-bg)] border-[var(--active-chip-bg)] text-[var(--active-chip-fg)]'
+                        : 'bg-[var(--bg-well)] border-[var(--border-hairline)] text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
                     }`}
                   >
                     {tex.label}
@@ -506,9 +619,11 @@ export function App() {
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div className="flex flex-col gap-1">
-                  <div className="flex justify-between font-mono-tech text-[11px]">
-                    <span className="text-[#e2e6f0]">Granular Cloud Level</span>
-                    <span className="text-[#38e2c7]">{params.granular.mix.toFixed(2)}</span>
+                  <div className="flex justify-between text-xs">
+                    <span className="font-medium text-[var(--text-primary)]">Cloud Mix</span>
+                    <span className="font-mono-tech text-[var(--accent)]">
+                      {params.granular.mix.toFixed(2)}
+                    </span>
                   </div>
                   <input
                     type="range"
@@ -517,14 +632,16 @@ export function App() {
                     step={0.01}
                     value={params.granular.mix}
                     onChange={(e) => updateParam('granular', 'mix', parseFloat(e.target.value))}
-                    className="synth-slider cyan-slider"
+                    className="synth-slider"
                   />
                 </div>
 
                 <div className="flex flex-col gap-1">
-                  <div className="flex justify-between font-mono-tech text-[11px]">
-                    <span className="text-[#e2e6f0]">Grain Density (Spawn Rate)</span>
-                    <span className="text-[#38e2c7]">{params.granular.density.toFixed(1)} /s</span>
+                  <div className="flex justify-between text-xs">
+                    <span className="font-medium text-[var(--text-primary)]">Grain Density</span>
+                    <span className="font-mono-tech text-[var(--accent)]">
+                      {params.granular.density.toFixed(1)} /s
+                    </span>
                   </div>
                   <input
                     type="range"
@@ -533,25 +650,30 @@ export function App() {
                     step={0.5}
                     value={params.granular.density}
                     onChange={(e) => updateParam('granular', 'density', parseFloat(e.target.value))}
-                    className="synth-slider cyan-slider"
+                    className="synth-slider"
                   />
                 </div>
               </div>
-            </div>
+            </section>
 
-            {/* PRIMARY TONE & FILTER MACRO CONTROLS */}
-            <div className="bg-[#161922] border border-[#252a38] rounded-lg p-3">
-              <div className="flex justify-between items-center mb-2.5">
-                <span className="font-display-tech text-[11px] font-bold uppercase tracking-wider text-[#7f889f]">
-                  Primary Tone, Filter & FM Core
+            {/* PRIMARY TONE, FILTER & FM CORE */}
+            <section className="bg-[var(--bg-card)] border border-[var(--border-hairline)] rounded-2xl p-4">
+              <div className="flex justify-between items-baseline mb-3">
+                <h2 className="font-display-tech text-sm font-semibold text-[var(--text-primary)]">
+                  Primary Tone & Filter Core
+                </h2>
+                <span className="font-mono-tech text-[11px] text-[var(--text-secondary)]">
+                  {params.synth.baseFreq.toFixed(1)} Hz
                 </span>
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div className="flex flex-col gap-1">
-                  <div className="flex justify-between font-mono-tech text-[11px]">
-                    <span className="text-[#e2e6f0]">Base Drone Root Freq</span>
-                    <span className="text-[#38e2c7]">{params.synth.baseFreq.toFixed(1)} Hz</span>
+                  <div className="flex justify-between text-xs">
+                    <span className="font-medium text-[var(--text-primary)]">Root Frequency</span>
+                    <span className="font-mono-tech text-[var(--accent)]">
+                      {params.synth.baseFreq.toFixed(1)} Hz
+                    </span>
                   </div>
                   <input
                     type="range"
@@ -565,9 +687,11 @@ export function App() {
                 </div>
 
                 <div className="flex flex-col gap-1">
-                  <div className="flex justify-between font-mono-tech text-[11px]">
-                    <span className="text-[#e2e6f0]">Drone Filter Cutoff</span>
-                    <span className="text-[#38e2c7]">{Math.round(params.filter.cutoff)} Hz</span>
+                  <div className="flex justify-between text-xs">
+                    <span className="font-medium text-[var(--text-primary)]">Filter Cutoff</span>
+                    <span className="font-mono-tech text-[var(--accent)]">
+                      {Math.round(params.filter.cutoff)} Hz
+                    </span>
                   </div>
                   <input
                     type="range"
@@ -581,9 +705,11 @@ export function App() {
                 </div>
 
                 <div className="flex flex-col gap-1">
-                  <div className="flex justify-between font-mono-tech text-[11px]">
-                    <span className="text-[#e2e6f0]">Cross-FM Depth</span>
-                    <span className="text-[#38e2c7]">{Math.round(params.synth.fmDepth)}</span>
+                  <div className="flex justify-between text-xs">
+                    <span className="font-medium text-[var(--text-primary)]">Cross-FM Depth</span>
+                    <span className="font-mono-tech text-[var(--accent)]">
+                      {Math.round(params.synth.fmDepth)}
+                    </span>
                   </div>
                   <input
                     type="range"
@@ -597,9 +723,11 @@ export function App() {
                 </div>
 
                 <div className="flex flex-col gap-1">
-                  <div className="flex justify-between font-mono-tech text-[11px]">
-                    <span className="text-[#e2e6f0]">Ring Mod Metallic Mix</span>
-                    <span className="text-[#f59e0b]">{params.synth.ringModMix.toFixed(2)}</span>
+                  <div className="flex justify-between text-xs">
+                    <span className="font-medium text-[var(--text-primary)]">Ring Mod Mix</span>
+                    <span className="font-mono-tech text-[var(--accent)]">
+                      {params.synth.ringModMix.toFixed(2)}
+                    </span>
                   </div>
                   <input
                     type="range"
@@ -608,19 +736,19 @@ export function App() {
                     step={0.01}
                     value={params.synth.ringModMix}
                     onChange={(e) => updateParam('synth', 'ringModMix', parseFloat(e.target.value))}
-                    className="synth-slider amber-slider"
+                    className="synth-slider"
                   />
                 </div>
               </div>
-            </div>
+            </section>
 
-            {/* ANNULUS PHYSICAL MODELING (MODAL RESONATOR) */}
-            <div className="bg-[#161922] border border-[#252a38] rounded-lg p-3">
-              <div className="flex justify-between items-center mb-2.5">
-                <span className="font-display-tech text-[11px] font-bold uppercase tracking-wider text-[#f472b6]">
-                  Annulus Physical Modeling (Modal)
-                </span>
-                <div className="flex items-center gap-1.5">
+            {/* ANNULUS PHYSICAL MODELING (MODAL) */}
+            <section className="bg-[var(--bg-card)] border border-[var(--border-hairline)] rounded-2xl p-4">
+              <div className="flex justify-between items-center mb-3 gap-2">
+                <h2 className="font-display-tech text-sm font-semibold text-[var(--text-primary)] truncate">
+                  Annulus Physical Modeling
+                </h2>
+                <div className="flex items-center gap-1.5 shrink-0">
                   <button
                     onClick={async () => {
                       await ensureRunning();
@@ -629,39 +757,39 @@ export function App() {
                       }
                       engine.triggerModalStrike(params.synth.baseFreq * 2, 1.0);
                     }}
-                    className="px-2 py-0.5 rounded font-mono-tech text-[10px] font-bold border bg-[#f472b6]/15 border-[#f472b6]/60 text-[#f472b6] hover:bg-[#f472b6]/25 cursor-pointer"
+                    className="px-3 py-1 rounded-lg font-mono-tech text-[11px] font-semibold border bg-[var(--bg-well)] border-[var(--border-hairline)] text-[var(--text-primary)] hover:border-[var(--accent)] cursor-pointer transition-colors"
                   >
-                    STRIKE
+                    Strike
                   </button>
                   <button
                     onClick={() => updateParam('modal', 'enabled', !params.modal.enabled)}
-                    className={`px-2.5 py-0.5 rounded font-mono-tech text-[10px] font-bold border cursor-pointer ${
+                    className={`px-3 py-1 rounded-lg font-mono-tech text-[11px] font-semibold border cursor-pointer transition-colors whitespace-nowrap ${
                       params.modal.enabled
-                        ? 'bg-[#f472b6]/20 border-[#f472b6] text-[#f472b6]'
-                        : 'bg-[#090b10] border-[#384157] text-[#7f889f]'
+                        ? 'bg-[var(--accent)] border-[var(--accent)] text-[var(--accent-fg)]'
+                        : 'bg-[var(--bg-well)] border-[var(--border-hairline)] text-[var(--text-secondary)]'
                     }`}
                   >
-                    {params.modal.enabled ? 'MODAL ON' : 'BYPASSED'}
+                    {params.modal.enabled ? 'Active' : 'Bypassed'}
                   </button>
                 </div>
               </div>
 
-              <div className="grid grid-cols-4 gap-1.5 mb-3">
+              <div className="grid grid-cols-4 gap-1.5 mb-4">
                 {(
                   [
-                    { id: 'plate', label: 'PLATE' },
-                    { id: 'membrane', label: 'MEMBRANE' },
-                    { id: 'glass', label: 'GLASS' },
-                    { id: 'spring', label: 'SPRING' }
+                    { id: 'plate', label: 'Plate' },
+                    { id: 'membrane', label: 'Membrane' },
+                    { id: 'glass', label: 'Glass' },
+                    { id: 'spring', label: 'Spring' }
                   ] as { id: ModalMaterialType; label: string }[]
                 ).map((mat) => (
                   <button
                     key={mat.id}
                     onClick={() => updateParam('modal', 'material', mat.id)}
-                    className={`py-1.5 px-1.5 rounded font-mono-tech text-[9px] font-semibold border transition cursor-pointer ${
+                    className={`min-h-[38px] py-1.5 px-2 rounded-xl text-[11px] font-semibold border transition-colors cursor-pointer whitespace-nowrap ${
                       params.modal.material === mat.id
-                        ? 'bg-[#f472b6]/20 border-[#f472b6] text-[#f472b6]'
-                        : 'bg-[#090b10] border-[#252a38] text-[#7f889f] hover:text-[#e2e6f0]'
+                        ? 'bg-[var(--active-chip-bg)] border-[var(--active-chip-bg)] text-[var(--active-chip-fg)]'
+                        : 'bg-[var(--bg-well)] border-[var(--border-hairline)] text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
                     }`}
                   >
                     {mat.label}
@@ -671,9 +799,11 @@ export function App() {
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div className="flex flex-col gap-1">
-                  <div className="flex justify-between font-mono-tech text-[11px]">
-                    <span className="text-[#e2e6f0]">Modal Resonator Mix</span>
-                    <span className="text-[#f472b6]">{params.modal.mix.toFixed(2)}</span>
+                  <div className="flex justify-between text-xs">
+                    <span className="font-medium text-[var(--text-primary)]">Resonator Mix</span>
+                    <span className="font-mono-tech text-[var(--accent)]">
+                      {params.modal.mix.toFixed(2)}
+                    </span>
                   </div>
                   <input
                     type="range"
@@ -687,9 +817,11 @@ export function App() {
                 </div>
 
                 <div className="flex flex-col gap-1">
-                  <div className="flex justify-between font-mono-tech text-[11px]">
-                    <span className="text-[#e2e6f0]">Bow / Scrape Pressure</span>
-                    <span className="text-[#f472b6]">{params.modal.bowPressure.toFixed(2)}</span>
+                  <div className="flex justify-between text-xs">
+                    <span className="font-medium text-[var(--text-primary)]">Bow Pressure</span>
+                    <span className="font-mono-tech text-[var(--accent)]">
+                      {params.modal.bowPressure.toFixed(2)}
+                    </span>
                   </div>
                   <input
                     type="range"
@@ -702,42 +834,42 @@ export function App() {
                   />
                 </div>
               </div>
-            </div>
+            </section>
 
             {/* ZEBRALETTE SPLINE WAVETABLE & WAVEFOLDER */}
-            <div className="bg-[#161922] border border-[#252a38] rounded-lg p-3">
-              <div className="flex justify-between items-center mb-2.5">
-                <span className="font-display-tech text-[11px] font-bold uppercase tracking-wider text-[#fb923c]">
-                  Zebralette Spline Wavetable & Wavefolder
-                </span>
+            <section className="bg-[var(--bg-card)] border border-[var(--border-hairline)] rounded-2xl p-4">
+              <div className="flex justify-between items-center mb-3 gap-2">
+                <h2 className="font-display-tech text-sm font-semibold text-[var(--text-primary)] truncate">
+                  Zebralette Wavetable & Fold
+                </h2>
                 <button
                   onClick={() => updateParam('wavetable', 'enabled', !params.wavetable.enabled)}
-                  className={`px-2.5 py-0.5 rounded font-mono-tech text-[10px] font-bold border cursor-pointer ${
+                  className={`px-3 py-1 rounded-lg font-mono-tech text-[11px] font-semibold border cursor-pointer transition-colors whitespace-nowrap shrink-0 ${
                     params.wavetable.enabled
-                      ? 'bg-[#fb923c]/20 border-[#fb923c] text-[#fb923c]'
-                      : 'bg-[#090b10] border-[#384157] text-[#7f889f]'
+                      ? 'bg-[var(--accent)] border-[var(--accent)] text-[var(--accent-fg)]'
+                      : 'bg-[var(--bg-well)] border-[var(--border-hairline)] text-[var(--text-secondary)]'
                   }`}
                 >
-                  {params.wavetable.enabled ? 'WAVETABLE ON' : 'BYPASSED'}
+                  {params.wavetable.enabled ? 'Active' : 'Bypassed'}
                 </button>
               </div>
 
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5 mb-3">
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5 mb-4">
                 {(
                   [
-                    { id: 'neuro_spline', label: 'NEURO SPLINE' },
-                    { id: 'spectral_formant', label: 'SPECTRAL FORMANT' },
-                    { id: 'acid_fold', label: 'ACID FOLD' },
-                    { id: 'metallic_pwm', label: 'METALLIC PWM' }
+                    { id: 'neuro_spline', label: 'Neuro' },
+                    { id: 'spectral_formant', label: 'Formant' },
+                    { id: 'acid_fold', label: 'Acid Fold' },
+                    { id: 'metallic_pwm', label: 'Metallic' }
                   ] as { id: WavetableBankType; label: string }[]
                 ).map((bank) => (
                   <button
                     key={bank.id}
                     onClick={() => updateParam('wavetable', 'bank', bank.id)}
-                    className={`py-1.5 px-1.5 rounded font-mono-tech text-[9px] font-semibold border transition cursor-pointer ${
+                    className={`min-h-[38px] py-1.5 px-2 rounded-xl text-[11px] font-semibold border transition-colors cursor-pointer whitespace-nowrap truncate ${
                       params.wavetable.bank === bank.id
-                        ? 'bg-[#fb923c]/20 border-[#fb923c] text-[#fb923c]'
-                        : 'bg-[#090b10] border-[#252a38] text-[#7f889f] hover:text-[#e2e6f0]'
+                        ? 'bg-[var(--active-chip-bg)] border-[var(--active-chip-bg)] text-[var(--active-chip-fg)]'
+                        : 'bg-[var(--bg-well)] border-[var(--border-hairline)] text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
                     }`}
                   >
                     {bank.label}
@@ -747,9 +879,11 @@ export function App() {
 
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <div className="flex flex-col gap-1">
-                  <div className="flex justify-between font-mono-tech text-[11px]">
-                    <span className="text-[#e2e6f0]">Wavetable Mix</span>
-                    <span className="text-[#fb923c]">{params.wavetable.mix.toFixed(2)}</span>
+                  <div className="flex justify-between text-xs">
+                    <span className="font-medium text-[var(--text-primary)]">Mix</span>
+                    <span className="font-mono-tech text-[var(--accent)]">
+                      {params.wavetable.mix.toFixed(2)}
+                    </span>
                   </div>
                   <input
                     type="range"
@@ -758,14 +892,16 @@ export function App() {
                     step={0.01}
                     value={params.wavetable.mix}
                     onChange={(e) => updateParam('wavetable', 'mix', parseFloat(e.target.value))}
-                    className="synth-slider amber-slider"
+                    className="synth-slider"
                   />
                 </div>
 
                 <div className="flex flex-col gap-1">
-                  <div className="flex justify-between font-mono-tech text-[11px]">
-                    <span className="text-[#e2e6f0]">Spline Morph Pos</span>
-                    <span className="text-[#fb923c]">{params.wavetable.position.toFixed(2)}</span>
+                  <div className="flex justify-between text-xs">
+                    <span className="font-medium text-[var(--text-primary)]">Morph</span>
+                    <span className="font-mono-tech text-[var(--accent)]">
+                      {params.wavetable.position.toFixed(2)}
+                    </span>
                   </div>
                   <input
                     type="range"
@@ -774,14 +910,16 @@ export function App() {
                     step={0.01}
                     value={params.wavetable.position}
                     onChange={(e) => updateParam('wavetable', 'position', parseFloat(e.target.value))}
-                    className="synth-slider amber-slider"
+                    className="synth-slider"
                   />
                 </div>
 
                 <div className="flex flex-col gap-1">
-                  <div className="flex justify-between font-mono-tech text-[11px]">
-                    <span className="text-[#e2e6f0]">Wavefold Drive</span>
-                    <span className="text-[#fb923c]">{params.wavetable.foldDrive.toFixed(2)}</span>
+                  <div className="flex justify-between text-xs">
+                    <span className="font-medium text-[var(--text-primary)]">Fold Drive</span>
+                    <span className="font-mono-tech text-[var(--accent)]">
+                      {params.wavetable.foldDrive.toFixed(2)}
+                    </span>
                   </div>
                   <input
                     type="range"
@@ -790,39 +928,44 @@ export function App() {
                     step={0.01}
                     value={params.wavetable.foldDrive}
                     onChange={(e) => updateParam('wavetable', 'foldDrive', parseFloat(e.target.value))}
-                    className="synth-slider amber-slider"
+                    className="synth-slider"
                   />
                 </div>
               </div>
-            </div>
+            </section>
 
             {/* COLLAPSIBLE ADVANCED SYNTH, GRANULAR & SPECTRAL CONTROLS */}
-            <div className="bg-[#161922] border border-[#252a38] rounded-lg overflow-hidden">
+            <section className="lg:col-span-2 bg-[var(--bg-card)] border border-[var(--border-hairline)] rounded-2xl overflow-hidden">
               <button
                 onClick={() => setShowAdvancedSynth((v) => !v)}
-                className="w-full px-3 py-2.5 flex items-center justify-between text-left hover:bg-[#1a1e29] transition cursor-pointer"
+                className="w-full px-4 py-3.5 flex items-center justify-between text-left hover:bg-[var(--bg-well)] transition-colors cursor-pointer"
               >
-                <div className="flex items-center gap-2">
-                  <SlidersHorizontal className="w-3.5 h-3.5 text-[#b886ff]" />
-                  <span className="font-display-tech text-[11px] font-bold uppercase tracking-wider text-[#e2e6f0]">
-                    Advanced Settings (Fine Synth, Grains & Formants)
+                <div className="flex items-center gap-2.5">
+                  <SlidersHorizontal className="w-4 h-4 text-[var(--accent)]" />
+                  <span className="font-display-tech text-sm font-semibold text-[var(--text-primary)]">
+                    Advanced Settings
+                  </span>
+                  <span className="text-xs text-[var(--text-secondary)] hidden sm:inline">
+                    Fine synth, grain window, comb & formant calibration
                   </span>
                 </div>
                 {showAdvancedSynth ? (
-                  <ChevronUp className="w-4 h-4 text-[#38e2c7]" />
+                  <ChevronUp className="w-4 h-4 text-[var(--text-secondary)]" />
                 ) : (
-                  <ChevronDown className="w-4 h-4 text-[#7f889f]" />
+                  <ChevronDown className="w-4 h-4 text-[var(--text-secondary)]" />
                 )}
               </button>
 
               {showAdvancedSynth && (
-                <div className="p-3 pt-2 border-t border-[#252a38] flex flex-col gap-4">
+                <div className="p-4 border-t border-[var(--border-hairline)] flex flex-col gap-5">
                   {/* Granular Fine Tuning */}
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5">
                     <div className="flex flex-col gap-1">
-                      <div className="flex justify-between font-mono-tech text-[11px]">
-                        <span className="text-[#e2e6f0]">Grain Window Size</span>
-                        <span className="text-[#38e2c7]">{Math.round(params.granular.size * 1000)} ms</span>
+                      <div className="flex justify-between text-xs">
+                        <span className="font-medium text-[var(--text-primary)]">Grain Window Size</span>
+                        <span className="font-mono-tech text-[var(--accent)]">
+                          {Math.round(params.granular.size * 1000)} ms
+                        </span>
                       </div>
                       <input
                         type="range"
@@ -831,14 +974,16 @@ export function App() {
                         step={0.005}
                         value={params.granular.size}
                         onChange={(e) => updateParam('granular', 'size', parseFloat(e.target.value))}
-                        className="synth-slider cyan-slider"
+                        className="synth-slider"
                       />
                     </div>
 
                     <div className="flex flex-col gap-1">
-                      <div className="flex justify-between font-mono-tech text-[11px]">
-                        <span className="text-[#e2e6f0]">Grain Pitch Ratio</span>
-                        <span className="text-[#38e2c7]">{params.granular.pitch.toFixed(2)}x</span>
+                      <div className="flex justify-between text-xs">
+                        <span className="font-medium text-[var(--text-primary)]">Grain Pitch Ratio</span>
+                        <span className="font-mono-tech text-[var(--accent)]">
+                          {params.granular.pitch.toFixed(2)}x
+                        </span>
                       </div>
                       <input
                         type="range"
@@ -852,9 +997,11 @@ export function App() {
                     </div>
 
                     <div className="flex flex-col gap-1">
-                      <div className="flex justify-between font-mono-tech text-[11px]">
-                        <span className="text-[#e2e6f0]">Microtonal Pitch Jitter</span>
-                        <span className="text-[#38e2c7]">{params.granular.pitchJitter.toFixed(2)}</span>
+                      <div className="flex justify-between text-xs">
+                        <span className="font-medium text-[var(--text-primary)]">Microtonal Jitter</span>
+                        <span className="font-mono-tech text-[var(--accent)]">
+                          {params.granular.pitchJitter.toFixed(2)}
+                        </span>
                       </div>
                       <input
                         type="range"
@@ -868,9 +1015,11 @@ export function App() {
                     </div>
 
                     <div className="flex flex-col gap-1">
-                      <div className="flex justify-between font-mono-tech text-[11px]">
-                        <span className="text-[#e2e6f0]">Position Spray / Chaos</span>
-                        <span className="text-[#38e2c7]">{params.granular.spray.toFixed(2)}</span>
+                      <div className="flex justify-between text-xs">
+                        <span className="font-medium text-[var(--text-primary)]">Position Spray</span>
+                        <span className="font-mono-tech text-[var(--accent)]">
+                          {params.granular.spray.toFixed(2)}
+                        </span>
                       </div>
                       <input
                         type="range"
@@ -884,9 +1033,11 @@ export function App() {
                     </div>
 
                     <div className="flex flex-col gap-1">
-                      <div className="flex justify-between font-mono-tech text-[11px]">
-                        <span className="text-[#e2e6f0]">Reverse Grain Probability</span>
-                        <span className="text-[#ff4d6d]">{Math.round(params.granular.reverseProb * 100)}%</span>
+                      <div className="flex justify-between text-xs">
+                        <span className="font-medium text-[var(--text-primary)]">Reverse Grain Prob</span>
+                        <span className="font-mono-tech text-[var(--danger)]">
+                          {Math.round(params.granular.reverseProb * 100)}%
+                        </span>
                       </div>
                       <input
                         type="range"
@@ -900,9 +1051,11 @@ export function App() {
                     </div>
 
                     <div className="flex flex-col gap-1">
-                      <div className="flex justify-between font-mono-tech text-[11px]">
-                        <span className="text-[#e2e6f0]">3D Stereo Grain Scatter</span>
-                        <span className="text-[#38e2c7]">{params.granular.spread.toFixed(2)}</span>
+                      <div className="flex justify-between text-xs">
+                        <span className="font-medium text-[var(--text-primary)]">3D Grain Scatter</span>
+                        <span className="font-mono-tech text-[var(--accent)]">
+                          {params.granular.spread.toFixed(2)}
+                        </span>
                       </div>
                       <input
                         type="range"
@@ -917,27 +1070,27 @@ export function App() {
                   </div>
 
                   {/* Oscillators, Sub, Ring, Creep */}
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 border-t border-[#252a38]">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5 pt-4 border-t border-[var(--border-hairline)]">
                     <div className="flex flex-col gap-1">
-                      <span className="font-mono-tech text-[11px] text-[#e2e6f0]">Osc 1 Waveform</span>
+                      <span className="text-xs font-medium text-[var(--text-secondary)]">Osc 1 Waveform</span>
                       <select
                         value={params.synth.osc1Type}
                         onChange={(e) => updateParam('synth', 'osc1Type', e.target.value as OscillatorWave)}
-                        className="bg-[#090b10] text-[#e2e6f0] border border-[#384157] rounded-md px-2.5 py-1.5 font-mono-tech text-[11px] outline-none"
+                        className="bg-[var(--bg-well)] text-[var(--text-primary)] border border-[var(--border-hairline)] rounded-xl px-3 py-2 text-xs font-medium outline-none min-h-[40px]"
                       >
                         <option value="sawtooth">Sawtooth</option>
                         <option value="triangle">Triangle</option>
                         <option value="sine">Sine</option>
-                        <option value="square">Square (Hollow)</option>
+                        <option value="square">Square</option>
                       </select>
                     </div>
 
                     <div className="flex flex-col gap-1">
-                      <span className="font-mono-tech text-[11px] text-[#e2e6f0]">Osc 2 Waveform</span>
+                      <span className="text-xs font-medium text-[var(--text-secondary)]">Osc 2 Waveform</span>
                       <select
                         value={params.synth.osc2Type}
                         onChange={(e) => updateParam('synth', 'osc2Type', e.target.value as OscillatorWave)}
-                        className="bg-[#090b10] text-[#e2e6f0] border border-[#384157] rounded-md px-2.5 py-1.5 font-mono-tech text-[11px] outline-none"
+                        className="bg-[var(--bg-well)] text-[var(--text-primary)] border border-[var(--border-hairline)] rounded-xl px-3 py-2 text-xs font-medium outline-none min-h-[40px]"
                       >
                         <option value="triangle">Triangle</option>
                         <option value="sawtooth">Sawtooth</option>
@@ -947,9 +1100,11 @@ export function App() {
                     </div>
 
                     <div className="flex flex-col gap-1">
-                      <div className="flex justify-between font-mono-tech text-[11px]">
-                        <span className="text-[#e2e6f0]">Unison Detune Spread</span>
-                        <span className="text-[#38e2c7]">{params.synth.detuneSpread.toFixed(1)} ct</span>
+                      <div className="flex justify-between text-xs">
+                        <span className="font-medium text-[var(--text-primary)]">Unison Detune</span>
+                        <span className="font-mono-tech text-[var(--accent)]">
+                          {params.synth.detuneSpread.toFixed(1)} ct
+                        </span>
                       </div>
                       <input
                         type="range"
@@ -963,9 +1118,11 @@ export function App() {
                     </div>
 
                     <div className="flex flex-col gap-1">
-                      <div className="flex justify-between font-mono-tech text-[11px]">
-                        <span className="text-[#e2e6f0]">Sub-Octave Abyss Level</span>
-                        <span className="text-[#38e2c7]">{params.synth.subLevel.toFixed(2)}</span>
+                      <div className="flex justify-between text-xs">
+                        <span className="font-medium text-[var(--text-primary)]">Sub-Octave Level</span>
+                        <span className="font-mono-tech text-[var(--accent)]">
+                          {params.synth.subLevel.toFixed(2)}
+                        </span>
                       </div>
                       <input
                         type="range"
@@ -979,9 +1136,11 @@ export function App() {
                     </div>
 
                     <div className="flex flex-col gap-1">
-                      <div className="flex justify-between font-mono-tech text-[11px]">
-                        <span className="text-[#e2e6f0]">FM Inharmonic Ratio</span>
-                        <span className="text-[#38e2c7]">{params.synth.fmRatio.toFixed(2)}</span>
+                      <div className="flex justify-between text-xs">
+                        <span className="font-medium text-[var(--text-primary)]">FM Inharmonic Ratio</span>
+                        <span className="font-mono-tech text-[var(--accent)]">
+                          {params.synth.fmRatio.toFixed(2)}
+                        </span>
                       </div>
                       <input
                         type="range"
@@ -995,9 +1154,11 @@ export function App() {
                     </div>
 
                     <div className="flex flex-col gap-1">
-                      <div className="flex justify-between font-mono-tech text-[11px]">
-                        <span className="text-[#e2e6f0]">Ring Modulator Freq</span>
-                        <span className="text-[#f59e0b]">{Math.round(params.synth.ringModFreq)} Hz</span>
+                      <div className="flex justify-between text-xs">
+                        <span className="font-medium text-[var(--text-primary)]">Ring Mod Freq</span>
+                        <span className="font-mono-tech text-[var(--accent)]">
+                          {Math.round(params.synth.ringModFreq)} Hz
+                        </span>
                       </div>
                       <input
                         type="range"
@@ -1006,14 +1167,16 @@ export function App() {
                         step={1}
                         value={params.synth.ringModFreq}
                         onChange={(e) => updateParam('synth', 'ringModFreq', parseFloat(e.target.value))}
-                        className="synth-slider amber-slider"
+                        className="synth-slider"
                       />
                     </div>
 
                     <div className="flex flex-col gap-1">
-                      <div className="flex justify-between font-mono-tech text-[11px]">
-                        <span className="text-[#e2e6f0]">Shepard Pitch Creep</span>
-                        <span className="text-[#ff4d6d]">{params.synth.pitchCreep.toFixed(2)}</span>
+                      <div className="flex justify-between text-xs">
+                        <span className="font-medium text-[var(--text-primary)]">Shepard Pitch Creep</span>
+                        <span className="font-mono-tech text-[var(--danger)]">
+                          {params.synth.pitchCreep.toFixed(2)}
+                        </span>
                       </div>
                       <input
                         type="range"
@@ -1027,9 +1190,11 @@ export function App() {
                     </div>
 
                     <div className="flex flex-col gap-1">
-                      <div className="flex justify-between font-mono-tech text-[11px]">
-                        <span className="text-[#e2e6f0]">Brown Noise Texture Level</span>
-                        <span className="text-[#38e2c7]">{params.synth.noiseLevel.toFixed(2)}</span>
+                      <div className="flex justify-between text-xs">
+                        <span className="font-medium text-[var(--text-primary)]">Brown Noise Level</span>
+                        <span className="font-mono-tech text-[var(--accent)]">
+                          {params.synth.noiseLevel.toFixed(2)}
+                        </span>
                       </div>
                       <input
                         type="range"
@@ -1043,12 +1208,14 @@ export function App() {
                     </div>
                   </div>
 
-                  {/* Spectral Comb & Formant Filters */}
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 border-t border-[#252a38]">
+                  {/* Spectral Comb, Formant, Modal & Wavetable Fine Tuning */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5 pt-4 border-t border-[var(--border-hairline)]">
                     <div className="flex flex-col gap-1">
-                      <div className="flex justify-between font-mono-tech text-[11px]">
-                        <span className="text-[#e2e6f0]">Drone Filter Resonance (Q)</span>
-                        <span className="text-[#38e2c7]">{params.filter.resonance.toFixed(1)}</span>
+                      <div className="flex justify-between text-xs">
+                        <span className="font-medium text-[var(--text-primary)]">Filter Resonance (Q)</span>
+                        <span className="font-mono-tech text-[var(--accent)]">
+                          {params.filter.resonance.toFixed(1)}
+                        </span>
                       </div>
                       <input
                         type="range"
@@ -1062,9 +1229,11 @@ export function App() {
                     </div>
 
                     <div className="flex flex-col gap-1">
-                      <div className="flex justify-between font-mono-tech text-[11px]">
-                        <span className="text-[#e2e6f0]">Metallic Comb Pitch</span>
-                        <span className="text-[#f59e0b]">{Math.round(params.filter.combFreq)} Hz</span>
+                      <div className="flex justify-between text-xs">
+                        <span className="font-medium text-[var(--text-primary)]">Comb Pitch</span>
+                        <span className="font-mono-tech text-[var(--accent)]">
+                          {Math.round(params.filter.combFreq)} Hz
+                        </span>
                       </div>
                       <input
                         type="range"
@@ -1073,14 +1242,16 @@ export function App() {
                         step={1}
                         value={params.filter.combFreq}
                         onChange={(e) => updateParam('filter', 'combFreq', parseFloat(e.target.value))}
-                        className="synth-slider amber-slider"
+                        className="synth-slider"
                       />
                     </div>
 
                     <div className="flex flex-col gap-1">
-                      <div className="flex justify-between font-mono-tech text-[11px]">
-                        <span className="text-[#e2e6f0]">Comb Feedback Resonance</span>
-                        <span className="text-[#f59e0b]">{params.filter.combFeedback.toFixed(2)}</span>
+                      <div className="flex justify-between text-xs">
+                        <span className="font-medium text-[var(--text-primary)]">Comb Feedback</span>
+                        <span className="font-mono-tech text-[var(--accent)]">
+                          {params.filter.combFeedback.toFixed(2)}
+                        </span>
                       </div>
                       <input
                         type="range"
@@ -1089,14 +1260,16 @@ export function App() {
                         step={0.01}
                         value={params.filter.combFeedback}
                         onChange={(e) => updateParam('filter', 'combFeedback', parseFloat(e.target.value))}
-                        className="synth-slider amber-slider"
+                        className="synth-slider"
                       />
                     </div>
 
                     <div className="flex flex-col gap-1">
-                      <div className="flex justify-between font-mono-tech text-[11px]">
-                        <span className="text-[#e2e6f0]">Comb Resonator Mix</span>
-                        <span className="text-[#f59e0b]">{params.filter.combMix.toFixed(2)}</span>
+                      <div className="flex justify-between text-xs">
+                        <span className="font-medium text-[var(--text-primary)]">Comb Mix</span>
+                        <span className="font-mono-tech text-[var(--accent)]">
+                          {params.filter.combMix.toFixed(2)}
+                        </span>
                       </div>
                       <input
                         type="range"
@@ -1105,14 +1278,16 @@ export function App() {
                         step={0.01}
                         value={params.filter.combMix}
                         onChange={(e) => updateParam('filter', 'combMix', parseFloat(e.target.value))}
-                        className="synth-slider amber-slider"
+                        className="synth-slider"
                       />
                     </div>
 
                     <div className="flex flex-col gap-1">
-                      <div className="flex justify-between font-mono-tech text-[11px]">
-                        <span className="text-[#e2e6f0]">Vocal Formant Vowel Morph</span>
-                        <span className="text-[#ff4d6d]">{params.filter.formantMorph.toFixed(2)}</span>
+                      <div className="flex justify-between text-xs">
+                        <span className="font-medium text-[var(--text-primary)]">Vocal Vowel Morph</span>
+                        <span className="font-mono-tech text-[var(--accent)]">
+                          {params.filter.formantMorph.toFixed(2)}
+                        </span>
                       </div>
                       <input
                         type="range"
@@ -1121,14 +1296,16 @@ export function App() {
                         step={0.01}
                         value={params.filter.formantMorph}
                         onChange={(e) => updateParam('filter', 'formantMorph', parseFloat(e.target.value))}
-                        className="synth-slider danger-slider"
+                        className="synth-slider"
                       />
                     </div>
 
                     <div className="flex flex-col gap-1">
-                      <div className="flex justify-between font-mono-tech text-[11px]">
-                        <span className="text-[#e2e6f0]">Vocal Cavity Whisper Mix</span>
-                        <span className="text-[#ff4d6d]">{params.filter.formantMix.toFixed(2)}</span>
+                      <div className="flex justify-between text-xs">
+                        <span className="font-medium text-[var(--text-primary)]">Vocal Cavity Mix</span>
+                        <span className="font-mono-tech text-[var(--accent)]">
+                          {params.filter.formantMix.toFixed(2)}
+                        </span>
                       </div>
                       <input
                         type="range"
@@ -1137,17 +1314,16 @@ export function App() {
                         step={0.01}
                         value={params.filter.formantMix}
                         onChange={(e) => updateParam('filter', 'formantMix', parseFloat(e.target.value))}
-                        className="synth-slider danger-slider"
+                        className="synth-slider"
                       />
                     </div>
-                  </div>
 
-                  {/* Modal & Wavetable Fine-Tuning */}
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2 border-t border-[#252a38]">
                     <div className="flex flex-col gap-1">
-                      <div className="flex justify-between font-mono-tech text-[11px]">
-                        <span className="text-[#e2e6f0]">Modal Inharmonicity</span>
-                        <span className="text-[#f472b6]">{params.modal.inharmonicity.toFixed(2)}</span>
+                      <div className="flex justify-between text-xs">
+                        <span className="font-medium text-[var(--text-primary)]">Modal Inharmonicity</span>
+                        <span className="font-mono-tech text-[var(--accent)]">
+                          {params.modal.inharmonicity.toFixed(2)}
+                        </span>
                       </div>
                       <input
                         type="range"
@@ -1161,9 +1337,11 @@ export function App() {
                     </div>
 
                     <div className="flex flex-col gap-1">
-                      <div className="flex justify-between font-mono-tech text-[11px]">
-                        <span className="text-[#e2e6f0]">Modal Damping</span>
-                        <span className="text-[#f472b6]">{params.modal.damping.toFixed(2)}</span>
+                      <div className="flex justify-between text-xs">
+                        <span className="font-medium text-[var(--text-primary)]">Modal Damping</span>
+                        <span className="font-mono-tech text-[var(--accent)]">
+                          {params.modal.damping.toFixed(2)}
+                        </span>
                       </div>
                       <input
                         type="range"
@@ -1177,9 +1355,11 @@ export function App() {
                     </div>
 
                     <div className="flex flex-col gap-1">
-                      <div className="flex justify-between font-mono-tech text-[11px]">
-                        <span className="text-[#e2e6f0]">Wavetable Spectral Tilt</span>
-                        <span className="text-[#fb923c]">{params.wavetable.spectralTilt.toFixed(2)}</span>
+                      <div className="flex justify-between text-xs">
+                        <span className="font-medium text-[var(--text-primary)]">Wavetable Tilt</span>
+                        <span className="font-mono-tech text-[var(--accent)]">
+                          {params.wavetable.spectralTilt.toFixed(2)}
+                        </span>
                       </div>
                       <input
                         type="range"
@@ -1188,152 +1368,168 @@ export function App() {
                         step={0.02}
                         value={params.wavetable.spectralTilt}
                         onChange={(e) => updateParam('wavetable', 'spectralTilt', parseFloat(e.target.value))}
-                        className="synth-slider amber-slider"
+                        className="synth-slider"
                       />
                     </div>
                   </div>
                 </div>
               )}
-            </div>
+            </section>
           </div>
         )}
 
         {/* ================================================================
-            TAB 3: 3D SPATIAL AUDIO, BINAURAL BEATS & DARK CAVERN FX
+            TAB 3: 3D SPATIAL AUDIO, BINAURAL BEATS & CAVERN FX
         ================================================================ */}
         {activeTab === 'mod3d' && (
-          <div className="flex flex-col gap-3">
-            {/* 3D BINAURAL & HRTF SPATIALIZER */}
-            <div className="bg-[#161922] border border-[#252a38] rounded-lg p-3">
-              <div className="flex flex-wrap justify-between items-center gap-2 mb-2.5">
-                <span className="font-display-tech text-[11px] font-bold uppercase tracking-wider text-[#b886ff]">
-                  3D HRTF Spatial Orbit & Space
-                </span>
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={handleToggleQualityTier}
-                    className={`px-2 py-0.5 rounded font-mono-tech text-[9px] font-bold border cursor-pointer transition ${
-                      qualityTier === 'mobile'
-                        ? 'bg-[#34d399]/15 border-[#34d399] text-[#34d399]'
-                        : 'bg-[#090b10] border-[#384157] text-[#38e2c7] hover:border-[#38e2c7]'
-                    }`}
-                    title="Toggle Mobile Game CPU / HRTF Eco Mode"
-                  >
-                    {qualityTier === 'mobile' ? 'MOBILE ECO (15Hz)' : 'STUDIO HQ (HRTF)'}
-                  </button>
-                  <span className="font-mono-tech text-[10px] text-[#38e2c7] hidden sm:inline">
-                    DOPPLER ACTIVE
-                  </span>
+          <div className="grid grid-cols-1 md:grid-cols-12 gap-4 items-start">
+            {/* SPATIAL RADAR VIEWPORT */}
+            <section className="md:col-span-7 bg-[var(--bg-card)] border border-[var(--border-hairline)] rounded-2xl p-4">
+              <div className="flex flex-wrap justify-between items-center gap-2 mb-3">
+                <div>
+                  <h2 className="font-display-tech text-sm font-semibold text-[var(--text-primary)]">
+                    3D Spatial Field
+                  </h2>
+                  <p className="text-xs text-[var(--text-secondary)]">
+                    Doppler active · {qualityTier === 'mobile' ? 'EqualPower 15Hz' : 'HRTF 360° 25Hz'}
+                  </p>
                 </div>
+                <button
+                  onClick={handleToggleQualityTier}
+                  className={`px-3 py-1.5 rounded-xl font-mono-tech text-[11px] font-semibold border cursor-pointer transition-colors whitespace-nowrap ${
+                    qualityTier === 'mobile'
+                      ? 'bg-[var(--accent)] border-[var(--accent)] text-[var(--accent-fg)]'
+                      : 'bg-[var(--bg-well)] border-[var(--border-hairline)] text-[var(--text-primary)] hover:border-[var(--accent)]'
+                  }`}
+                  title="Toggle Mobile Game CPU / HRTF Eco Mode"
+                >
+                  {qualityTier === 'mobile' ? 'Mobile Eco' : 'Studio HQ'}
+                </button>
               </div>
 
               <Spatial3DRadar
                 engine={engine}
                 orbitShape={params.spatial.orbitShape}
+                theme={theme}
                 onSelectOrbitShape={(shape: OrbitShapeType) =>
                   updateParam('spatial', 'orbitShape', shape)
                 }
                 onEnsureRunning={ensureRunning}
               />
+            </section>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-3">
-                <div className="flex flex-col gap-1">
-                  <div className="flex justify-between font-mono-tech text-[11px]">
-                    <span className="text-[#e2e6f0]">3D Orbit Speed</span>
-                    <span className="text-[#38e2c7]">{params.spatial.orbitSpeed.toFixed(2)} Hz</span>
-                  </div>
-                  <input
-                    type="range"
-                    min={0.02}
-                    max={2.2}
-                    step={0.02}
-                    value={params.spatial.orbitSpeed}
-                    onChange={(e) => updateParam('spatial', 'orbitSpeed', parseFloat(e.target.value))}
-                    className="synth-slider cyan-slider"
-                  />
-                </div>
+            {/* PRIMARY ORBIT & SPACE SLIDERS */}
+            <section className="md:col-span-5 bg-[var(--bg-card)] border border-[var(--border-hairline)] rounded-2xl p-4 flex flex-col gap-3.5">
+              <h2 className="font-display-tech text-sm font-semibold text-[var(--text-primary)]">
+                Orbit & Space Controls
+              </h2>
 
-                <div className="flex flex-col gap-1">
-                  <div className="flex justify-between font-mono-tech text-[11px]">
-                    <span className="text-[#e2e6f0]">3D Orbit Distance (Radius)</span>
-                    <span className="text-[#38e2c7]">{params.spatial.orbitRadius.toFixed(1)} m</span>
-                  </div>
-                  <input
-                    type="range"
-                    min={0.5}
-                    max={8.0}
-                    step={0.1}
-                    value={params.spatial.orbitRadius}
-                    onChange={(e) => updateParam('spatial', 'orbitRadius', parseFloat(e.target.value))}
-                    className="synth-slider cyan-slider"
-                  />
+              <div className="flex flex-col gap-1">
+                <div className="flex justify-between text-xs">
+                  <span className="font-medium text-[var(--text-primary)]">3D Orbit Speed</span>
+                  <span className="font-mono-tech text-[var(--accent)]">
+                    {params.spatial.orbitSpeed.toFixed(2)} Hz
+                  </span>
                 </div>
-
-                <div className="flex flex-col gap-1">
-                  <div className="flex justify-between font-mono-tech text-[11px]">
-                    <span className="text-[#e2e6f0]">Cavern Convolver Reverb</span>
-                    <span className="text-[#38e2c7]">{params.fx.reverbMix.toFixed(2)}</span>
-                  </div>
-                  <input
-                    type="range"
-                    min={0}
-                    max={0.92}
-                    step={0.01}
-                    value={params.fx.reverbMix}
-                    onChange={(e) => updateParam('fx', 'reverbMix', parseFloat(e.target.value))}
-                    className="synth-slider"
-                  />
-                </div>
-
-                <div className="flex flex-col gap-1">
-                  <div className="flex justify-between font-mono-tech text-[11px]">
-                    <span className="text-[#e2e6f0]">Master Output Gain</span>
-                    <span className="text-[#38e2c7]">{masterVol.toFixed(2)}</span>
-                  </div>
-                  <input
-                    type="range"
-                    min={0}
-                    max={1}
-                    step={0.01}
-                    value={masterVol}
-                    onChange={(e) => {
-                      const v = parseFloat(e.target.value);
-                      setMasterVol(v);
-                      engine.setMasterVolume(v);
-                    }}
-                    className="synth-slider cyan-slider"
-                  />
-                </div>
+                <input
+                  type="range"
+                  min={0.02}
+                  max={2.2}
+                  step={0.02}
+                  value={params.spatial.orbitSpeed}
+                  onChange={(e) => updateParam('spatial', 'orbitSpeed', parseFloat(e.target.value))}
+                  className="synth-slider"
+                />
               </div>
-            </div>
+
+              <div className="flex flex-col gap-1">
+                <div className="flex justify-between text-xs">
+                  <span className="font-medium text-[var(--text-primary)]">Orbit Distance</span>
+                  <span className="font-mono-tech text-[var(--accent)]">
+                    {params.spatial.orbitRadius.toFixed(1)} m
+                  </span>
+                </div>
+                <input
+                  type="range"
+                  min={0.5}
+                  max={8.0}
+                  step={0.1}
+                  value={params.spatial.orbitRadius}
+                  onChange={(e) => updateParam('spatial', 'orbitRadius', parseFloat(e.target.value))}
+                  className="synth-slider"
+                />
+              </div>
+
+              <div className="flex flex-col gap-1">
+                <div className="flex justify-between text-xs">
+                  <span className="font-medium text-[var(--text-primary)]">Cavern Convolver</span>
+                  <span className="font-mono-tech text-[var(--accent)]">
+                    {params.fx.reverbMix.toFixed(2)}
+                  </span>
+                </div>
+                <input
+                  type="range"
+                  min={0}
+                  max={0.92}
+                  step={0.01}
+                  value={params.fx.reverbMix}
+                  onChange={(e) => updateParam('fx', 'reverbMix', parseFloat(e.target.value))}
+                  className="synth-slider"
+                />
+              </div>
+
+              <div className="flex flex-col gap-1">
+                <div className="flex justify-between text-xs">
+                  <span className="font-medium text-[var(--text-primary)]">Master Output</span>
+                  <span className="font-mono-tech text-[var(--accent)]">{masterVol.toFixed(2)}</span>
+                </div>
+                <input
+                  type="range"
+                  min={0}
+                  max={1}
+                  step={0.01}
+                  value={masterVol}
+                  onChange={(e) => {
+                    const v = parseFloat(e.target.value);
+                    setMasterVol(v);
+                    engine.setMasterVolume(v);
+                  }}
+                  className="synth-slider"
+                />
+              </div>
+            </section>
 
             {/* COLLAPSIBLE ADVANCED 3D, LFO & ECHO CONTROLS */}
-            <div className="bg-[#161922] border border-[#252a38] rounded-lg overflow-hidden">
+            <section className="md:col-span-12 bg-[var(--bg-card)] border border-[var(--border-hairline)] rounded-2xl overflow-hidden">
               <button
                 onClick={() => setShowAdvancedMod((v) => !v)}
-                className="w-full px-3 py-2.5 flex items-center justify-between text-left hover:bg-[#1a1e29] transition cursor-pointer"
+                className="w-full px-4 py-3.5 flex items-center justify-between text-left hover:bg-[var(--bg-well)] transition-colors cursor-pointer"
               >
-                <div className="flex items-center gap-2">
-                  <SlidersHorizontal className="w-3.5 h-3.5 text-[#38e2c7]" />
-                  <span className="font-display-tech text-[11px] font-bold uppercase tracking-wider text-[#e2e6f0]">
-                    Advanced Settings (Binaural, LFO Drift & Echo Network)
+                <div className="flex items-center gap-2.5">
+                  <SlidersHorizontal className="w-4 h-4 text-[var(--accent)]" />
+                  <span className="font-display-tech text-sm font-semibold text-[var(--text-primary)]">
+                    Advanced Settings
+                  </span>
+                  <span className="text-xs text-[var(--text-secondary)] hidden sm:inline">
+                    Binaural split, LFO drift, delay & analog saturation
                   </span>
                 </div>
                 {showAdvancedMod ? (
-                  <ChevronUp className="w-4 h-4 text-[#38e2c7]" />
+                  <ChevronUp className="w-4 h-4 text-[var(--text-secondary)]" />
                 ) : (
-                  <ChevronDown className="w-4 h-4 text-[#7f889f]" />
+                  <ChevronDown className="w-4 h-4 text-[var(--text-secondary)]" />
                 )}
               </button>
 
               {showAdvancedMod && (
-                <div className="p-3 pt-2 border-t border-[#252a38] flex flex-col gap-4">
-                  {/* Spatial Psychoacoustics */}
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="p-4 border-t border-[var(--border-hairline)] flex flex-col gap-5">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
                     <div className="flex flex-col gap-1">
-                      <div className="flex justify-between font-mono-tech text-[11px]">
-                        <span className="text-[#e2e6f0]">Relativistic Doppler Shift</span>
-                        <span className="text-[#f59e0b]">{params.spatial.dopplerShift.toFixed(2)}</span>
+                      <div className="flex justify-between text-xs">
+                        <span className="font-medium text-[var(--text-primary)]">Doppler Shift</span>
+                        <span className="font-mono-tech text-[var(--accent)]">
+                          {params.spatial.dopplerShift.toFixed(2)}
+                        </span>
                       </div>
                       <input
                         type="range"
@@ -1342,14 +1538,16 @@ export function App() {
                         step={0.01}
                         value={params.spatial.dopplerShift}
                         onChange={(e) => updateParam('spatial', 'dopplerShift', parseFloat(e.target.value))}
-                        className="synth-slider amber-slider"
+                        className="synth-slider"
                       />
                     </div>
 
                     <div className="flex flex-col gap-1">
-                      <div className="flex justify-between font-mono-tech text-[11px]">
-                        <span className="text-[#e2e6f0]">Binaural Beat Freq Split (L/R)</span>
-                        <span className="text-[#b886ff]">{params.spatial.binauralDetune.toFixed(1)} Hz</span>
+                      <div className="flex justify-between text-xs">
+                        <span className="font-medium text-[var(--text-primary)]">Binaural Split</span>
+                        <span className="font-mono-tech text-[var(--accent)]">
+                          {params.spatial.binauralDetune.toFixed(1)} Hz
+                        </span>
                       </div>
                       <input
                         type="range"
@@ -1363,9 +1561,11 @@ export function App() {
                     </div>
 
                     <div className="flex flex-col gap-1">
-                      <div className="flex justify-between font-mono-tech text-[11px]">
-                        <span className="text-[#e2e6f0]">3D Elevation Offset (Y-Axis)</span>
-                        <span className="text-[#38e2c7]">{params.spatial.elevation.toFixed(2)}</span>
+                      <div className="flex justify-between text-xs">
+                        <span className="font-medium text-[var(--text-primary)]">Elevation (Y)</span>
+                        <span className="font-mono-tech text-[var(--accent)]">
+                          {params.spatial.elevation.toFixed(2)}
+                        </span>
                       </div>
                       <input
                         type="range"
@@ -1379,9 +1579,11 @@ export function App() {
                     </div>
 
                     <div className="flex flex-col gap-1">
-                      <div className="flex justify-between font-mono-tech text-[11px]">
-                        <span className="text-[#e2e6f0]">Haas Psychoacoustic Width</span>
-                        <span className="text-[#38e2c7]">{(params.spatial.haasWidth * 1000).toFixed(1)} ms</span>
+                      <div className="flex justify-between text-xs">
+                        <span className="font-medium text-[var(--text-primary)]">Haas Width</span>
+                        <span className="font-mono-tech text-[var(--accent)]">
+                          {(params.spatial.haasWidth * 1000).toFixed(1)} ms
+                        </span>
                       </div>
                       <input
                         type="range"
@@ -1395,12 +1597,13 @@ export function App() {
                     </div>
                   </div>
 
-                  {/* Autonomous Drift & LFO */}
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 border-t border-[#252a38]">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5 pt-4 border-t border-[var(--border-hairline)]">
                     <div className="flex flex-col gap-1">
-                      <div className="flex justify-between font-mono-tech text-[11px]">
-                        <span className="text-[#e2e6f0]">LFO Sweep Rate</span>
-                        <span className="text-[#38e2c7]">{params.modulation.lfoRate.toFixed(2)} Hz</span>
+                      <div className="flex justify-between text-xs">
+                        <span className="font-medium text-[var(--text-primary)]">LFO Sweep Rate</span>
+                        <span className="font-mono-tech text-[var(--accent)]">
+                          {params.modulation.lfoRate.toFixed(2)} Hz
+                        </span>
                       </div>
                       <input
                         type="range"
@@ -1414,9 +1617,11 @@ export function App() {
                     </div>
 
                     <div className="flex flex-col gap-1">
-                      <div className="flex justify-between font-mono-tech text-[11px]">
-                        <span className="text-[#e2e6f0]">LFO Filter Depth</span>
-                        <span className="text-[#38e2c7]">{Math.round(params.modulation.lfoDepth)}</span>
+                      <div className="flex justify-between text-xs">
+                        <span className="font-medium text-[var(--text-primary)]">LFO Filter Depth</span>
+                        <span className="font-mono-tech text-[var(--accent)]">
+                          {Math.round(params.modulation.lfoDepth)}
+                        </span>
                       </div>
                       <input
                         type="range"
@@ -1430,9 +1635,11 @@ export function App() {
                     </div>
 
                     <div className="flex flex-col gap-1">
-                      <div className="flex justify-between font-mono-tech text-[11px]">
-                        <span className="text-[#e2e6f0]">Stochastic Drift Rate</span>
-                        <span className="text-[#38e2c7]">{params.modulation.driftSpeed.toFixed(2)}</span>
+                      <div className="flex justify-between text-xs">
+                        <span className="font-medium text-[var(--text-primary)]">Stochastic Drift</span>
+                        <span className="font-mono-tech text-[var(--accent)]">
+                          {params.modulation.driftSpeed.toFixed(2)}
+                        </span>
                       </div>
                       <input
                         type="range"
@@ -1446,9 +1653,11 @@ export function App() {
                     </div>
 
                     <div className="flex flex-col gap-1">
-                      <div className="flex justify-between font-mono-tech text-[11px]">
-                        <span className="text-[#e2e6f0]">Stereo Pan Motion Width</span>
-                        <span className="text-[#38e2c7]">{params.modulation.stereoWidth.toFixed(2)}</span>
+                      <div className="flex justify-between text-xs">
+                        <span className="font-medium text-[var(--text-primary)]">Stereo Motion</span>
+                        <span className="font-mono-tech text-[var(--accent)]">
+                          {params.modulation.stereoWidth.toFixed(2)}
+                        </span>
                       </div>
                       <input
                         type="range"
@@ -1462,12 +1671,13 @@ export function App() {
                     </div>
                   </div>
 
-                  {/* Echo Delay & Analog Drive */}
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 border-t border-[#252a38]">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5 pt-4 border-t border-[var(--border-hairline)]">
                     <div className="flex flex-col gap-1">
-                      <div className="flex justify-between font-mono-tech text-[11px]">
-                        <span className="text-[#e2e6f0]">Echo Delay Time</span>
-                        <span className="text-[#38e2c7]">{params.fx.delayTime.toFixed(2)} s</span>
+                      <div className="flex justify-between text-xs">
+                        <span className="font-medium text-[var(--text-primary)]">Echo Delay Time</span>
+                        <span className="font-mono-tech text-[var(--accent)]">
+                          {params.fx.delayTime.toFixed(2)} s
+                        </span>
                       </div>
                       <input
                         type="range"
@@ -1481,9 +1691,11 @@ export function App() {
                     </div>
 
                     <div className="flex flex-col gap-1">
-                      <div className="flex justify-between font-mono-tech text-[11px]">
-                        <span className="text-[#e2e6f0]">Echo Feedback</span>
-                        <span className="text-[#38e2c7]">{params.fx.delayFeedback.toFixed(2)}</span>
+                      <div className="flex justify-between text-xs">
+                        <span className="font-medium text-[var(--text-primary)]">Echo Feedback</span>
+                        <span className="font-mono-tech text-[var(--accent)]">
+                          {params.fx.delayFeedback.toFixed(2)}
+                        </span>
                       </div>
                       <input
                         type="range"
@@ -1497,9 +1709,11 @@ export function App() {
                     </div>
 
                     <div className="flex flex-col gap-1">
-                      <div className="flex justify-between font-mono-tech text-[11px]">
-                        <span className="text-[#e2e6f0]">Echo Wet Mix</span>
-                        <span className="text-[#38e2c7]">{params.fx.delayMix.toFixed(2)}</span>
+                      <div className="flex justify-between text-xs">
+                        <span className="font-medium text-[var(--text-primary)]">Echo Wet Mix</span>
+                        <span className="font-mono-tech text-[var(--accent)]">
+                          {params.fx.delayMix.toFixed(2)}
+                        </span>
                       </div>
                       <input
                         type="range"
@@ -1513,9 +1727,11 @@ export function App() {
                     </div>
 
                     <div className="flex flex-col gap-1">
-                      <div className="flex justify-between font-mono-tech text-[11px]">
-                        <span className="text-[#e2e6f0]">Analog Waveshaper Drive</span>
-                        <span className="text-[#f59e0b]">{params.fx.drive.toFixed(2)}</span>
+                      <div className="flex justify-between text-xs">
+                        <span className="font-medium text-[var(--text-primary)]">Analog Drive</span>
+                        <span className="font-mono-tech text-[var(--accent)]">
+                          {params.fx.drive.toFixed(2)}
+                        </span>
                       </div>
                       <input
                         type="range"
@@ -1524,13 +1740,13 @@ export function App() {
                         step={0.01}
                         value={params.fx.drive}
                         onChange={(e) => updateParam('fx', 'drive', parseFloat(e.target.value))}
-                        className="synth-slider amber-slider"
+                        className="synth-slider"
                       />
                     </div>
                   </div>
                 </div>
               )}
-            </div>
+            </section>
           </div>
         )}
 
@@ -1542,158 +1758,146 @@ export function App() {
         )}
 
         {/* ================================================================
-            TAB 5: PRESETS & SHADOWFLAP JSON EXPORT
+            TAB 5: PRESETS & JSON EXPORT
         ================================================================ */}
         {activeTab === 'presets' && (
-          <div className="flex flex-col gap-3">
-            {/* PRESET LIBRARY CARD */}
-            <div className="bg-[#161922] border border-[#252a38] rounded-lg p-3">
-              <div className="flex flex-wrap justify-between items-center gap-2 mb-2.5">
-                <span className="font-display-tech text-[11px] font-bold uppercase tracking-wider text-[#7f889f]">
-                  Factory & Custom Soundscapes ({filteredPresets.length})
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 items-start">
+            {/* PRESET LIBRARY */}
+            <section className="lg:col-span-7 bg-[var(--bg-card)] border border-[var(--border-hairline)] rounded-2xl p-4">
+              <div className="flex flex-wrap justify-between items-baseline gap-2 mb-3">
+                <h2 className="font-display-tech text-sm font-semibold text-[var(--text-primary)]">
+                  Soundscape Library
+                </h2>
+                <span className="font-mono-tech text-xs text-[var(--text-secondary)]">
+                  {filteredPresets.length} patches
                 </span>
+              </div>
 
-                {/* Category Filter Pills */}
-                <div className="flex flex-wrap gap-1">
-                  {(
-                    [
-                      { id: 'all', label: 'ALL' },
-                      { id: 'industrial', label: 'INDUSTRIAL' },
-                      { id: 'void', label: 'VOID' },
-                      { id: 'psychedelic', label: 'PSYCHEDELIC' },
-                      { id: 'horror', label: 'HORROR' },
-                      { id: 'tape', label: 'TAPE/NOISE' },
-                      { id: 'hypnotic', label: 'HYPNOTIC' },
-                      { id: 'liquid', label: 'LIQUID' },
-                      { id: 'modal', label: 'MODAL' },
-                      { id: 'heavy', label: 'HEAVY WT' },
-                      { id: 'custom', label: 'SAVED' }
-                    ] as { id: PresetCategory | 'all'; label: string }[]
-                  ).map((cat) => (
-                    <button
-                      key={cat.id}
-                      onClick={() => setPresetFilter(cat.id)}
-                      className={`px-2 py-0.5 rounded font-mono-tech text-[9px] font-bold border cursor-pointer transition ${
-                        presetFilter === cat.id
-                          ? 'bg-[#b886ff]/20 border-[#b886ff] text-[#b886ff]'
-                          : 'bg-[#090b10] border-[#252a38] text-[#7f889f] hover:text-[#e2e6f0]'
-                      }`}
-                    >
-                      {cat.label}
-                    </button>
-                  ))}
-                </div>
+              {/* Interactive Category Filter Buttons */}
+              <div className="flex flex-wrap gap-1.5 mb-3">
+                {(
+                  [
+                    { id: 'all', label: 'All' },
+                    { id: 'industrial', label: 'Industrial' },
+                    { id: 'void', label: 'Void' },
+                    { id: 'psychedelic', label: 'Psychedelic' },
+                    { id: 'horror', label: 'Horror' },
+                    { id: 'tape', label: 'Tape' },
+                    { id: 'hypnotic', label: 'Hypnotic' },
+                    { id: 'liquid', label: 'Liquid' },
+                    { id: 'modal', label: 'Modal' },
+                    { id: 'heavy', label: 'Heavy WT' },
+                    { id: 'custom', label: 'Saved' }
+                  ] as { id: PresetCategory | 'all'; label: string }[]
+                ).map((cat) => (
+                  <button
+                    key={cat.id}
+                    onClick={() => setPresetFilter(cat.id)}
+                    className={`px-2.5 py-1 rounded-lg text-xs font-medium border cursor-pointer transition-colors whitespace-nowrap ${
+                      presetFilter === cat.id
+                        ? 'bg-[var(--active-chip-bg)] border-[var(--active-chip-bg)] text-[var(--active-chip-fg)]'
+                        : 'bg-[var(--bg-well)] border-[var(--border-hairline)] text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
+                    }`}
+                  >
+                    {cat.label}
+                  </button>
+                ))}
               </div>
 
               {/* Save Current Patch Bar */}
-              <div className="flex gap-1.5 mb-3">
+              <div className="flex gap-2 mb-3.5">
                 <input
                   type="text"
                   placeholder="Save current soundscape as..."
                   value={customNameInput}
                   onChange={(e) => setCustomNameInput(e.target.value)}
-                  className="flex-1 bg-[#090b10] border border-[#384157] rounded-md px-2.5 py-1.5 font-mono-tech text-[11px] text-[#e2e6f0] outline-none select-text"
+                  className="flex-1 bg-[var(--bg-well)] border border-[var(--border-hairline)] rounded-xl px-3 py-2 text-xs text-[var(--text-primary)] placeholder:text-[var(--text-muted)] outline-none select-text min-h-[40px]"
                 />
                 <button
                   onClick={handleSaveCustomPreset}
-                  className="bg-[#38e2c7]/15 hover:bg-[#38e2c7]/25 text-[#38e2c7] border border-[#38e2c7] rounded-md px-3 py-1.5 font-mono-tech text-[10px] font-bold flex items-center gap-1 cursor-pointer shrink-0"
+                  className="bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-[var(--accent-fg)] rounded-xl px-4 py-2 text-xs font-semibold flex items-center gap-1.5 cursor-pointer shrink-0 whitespace-nowrap transition-colors min-h-[40px]"
                 >
                   <BookmarkPlus className="w-3.5 h-3.5" />
-                  SAVE PATCH
+                  Save Patch
                 </button>
               </div>
 
-              {/* Preset Grid */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              {/* Preset Cards (Quiet Unboxed Metadata) */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                 {filteredPresets.map((preset) => {
                   const isSelected = activePresetName === preset.name;
-                  const catBadgeColor =
-                    preset.category === 'horror'
-                      ? 'text-[#ff4d6d] border-[#ff4d6d]/40 bg-[#ff4d6d]/10'
-                      : preset.category === 'psychedelic'
-                      ? 'text-[#b886ff] border-[#b886ff]/40 bg-[#b886ff]/10'
-                      : preset.category === 'void'
-                      ? 'text-[#38e2c7] border-[#38e2c7]/40 bg-[#38e2c7]/10'
-                      : preset.category === 'tape'
-                      ? 'text-[#eab308] border-[#eab308]/40 bg-[#eab308]/10'
-                      : preset.category === 'hypnotic'
-                      ? 'text-[#60a5fa] border-[#60a5fa]/40 bg-[#60a5fa]/10'
-                      : preset.category === 'liquid'
-                      ? 'text-[#34d399] border-[#34d399]/40 bg-[#34d399]/10'
-                      : preset.category === 'modal'
-                      ? 'text-[#f472b6] border-[#f472b6]/40 bg-[#f472b6]/10'
-                      : preset.category === 'heavy'
-                      ? 'text-[#fb923c] border-[#fb923c]/40 bg-[#fb923c]/10'
-                      : preset.category === 'custom'
-                      ? 'text-[#f59e0b] border-[#f59e0b]/40 bg-[#f59e0b]/10'
-                      : 'text-[#9ca3af] border-[#384157] bg-[#101218]';
-
                   return (
                     <div
                       key={preset.name}
                       onClick={() => handleLoadPreset(preset)}
-                      className={`group p-2.5 rounded-md border text-left transition cursor-pointer flex flex-col justify-between gap-1 ${
+                      role="button"
+                      tabIndex={0}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' || e.key === ' ') {
+                          e.preventDefault();
+                          handleLoadPreset(preset);
+                        }
+                      }}
+                      className={`p-3 rounded-xl border text-left transition-colors cursor-pointer flex flex-col justify-between gap-1.5 ${
                         isSelected
-                          ? 'bg-[#b886ff]/14 border-[#b886ff] shadow-[0_0_12px_rgba(184,134,255,0.18)]'
-                          : 'bg-[#101218] border-[#252a38] hover:border-[#384157]'
+                          ? 'bg-[var(--accent-soft)] border-[var(--accent)]'
+                          : 'bg-[var(--bg-well)] border-[var(--border-hairline)] hover:border-[var(--border-strong)]'
                       }`}
                     >
-                      <div className="flex items-center justify-between gap-1">
-                        <span className="font-mono-tech text-[11px] font-bold text-[#e2e6f0] truncate">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-xs font-semibold text-[var(--text-primary)] truncate">
                           {preset.name}
                         </span>
-                        <div className="flex items-center gap-1 shrink-0">
-                          <span
-                            className={`px-1.5 py-0.2 rounded text-[8px] font-mono-tech uppercase border ${catBadgeColor}`}
+                        {preset.category === 'custom' && (
+                          <button
+                            onClick={(e) => handleDeleteCustomPreset(preset.name, e)}
+                            className="text-[var(--text-muted)] hover:text-[var(--danger)] p-1 shrink-0 cursor-pointer"
+                            title="Delete saved preset"
+                            aria-label={`Delete ${preset.name}`}
                           >
-                            {preset.category || 'patch'}
-                          </span>
-                          {preset.category === 'custom' && (
-                            <button
-                              onClick={(e) => handleDeleteCustomPreset(preset.name, e)}
-                              className="text-[#7f889f] hover:text-[#ff4d6d] p-0.5"
-                              title="Delete saved preset"
-                            >
-                              <Trash2 className="w-3 h-3" />
-                            </button>
-                          )}
-                        </div>
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        )}
                       </div>
                       {preset.description && (
-                        <p className="text-[10px] text-[#7f889f] line-clamp-1 m-0">
+                        <p className="text-[11px] text-[var(--text-secondary)] line-clamp-1 m-0">
                           {preset.description}
                         </p>
                       )}
-                      <div className="flex items-center gap-2 text-[9px] font-mono-tech text-[#38e2c7]/80 mt-0.5">
+                      <div className="flex items-center gap-1.5 font-mono-tech text-[10px] text-[var(--text-muted)] mt-0.5 truncate">
+                        <span className="text-[var(--accent)] font-medium">
+                          {preset.category || 'patch'}
+                        </span>
+                        <span aria-hidden="true">·</span>
                         <span>{preset.synth.baseFreq}Hz</span>
-                        <span>•</span>
-                        <span>GRAIN: {preset.granular?.texture || 'metallic'}</span>
-                        <span>•</span>
-                        <span>3D: {preset.spatial?.orbitShape || 'circle'}</span>
+                        <span aria-hidden="true">·</span>
+                        <span>{preset.granular?.texture || 'metallic'}</span>
+                        <span aria-hidden="true">·</span>
+                        <span>{preset.spatial?.orbitShape || 'circle'}</span>
                       </div>
                     </div>
                   );
                 })}
               </div>
-            </div>
+            </section>
 
             {/* JSON CONFIG IMPORT / EXPORT */}
-            <div className="bg-[#161922] border border-[#252a38] rounded-lg p-3">
-              <div className="flex justify-between items-center mb-2">
-                <span className="font-display-tech text-[11px] font-bold uppercase tracking-wider text-[#7f889f]">
-                  Shadowflap JSON Config Import / Export
-                </span>
+            <section className="lg:col-span-5 bg-[var(--bg-card)] border border-[var(--border-hairline)] rounded-2xl p-4">
+              <div className="flex flex-wrap justify-between items-center gap-2 mb-3">
+                <h2 className="font-display-tech text-sm font-semibold text-[var(--text-primary)]">
+                  Patch JSON Config
+                </h2>
                 <div className="flex gap-1.5">
                   <button
                     onClick={() => {
                       navigator.clipboard
                         .writeText(jsonText)
-                        .then(() => showToast('JSON Copied to Clipboard!'));
+                        .then(() => showToast('JSON copied to clipboard'));
                     }}
-                    className="bg-[#101218] hover:bg-[#1e2230] text-[#38e2c7] border border-[#384157] rounded px-2 py-1 font-mono-tech text-[10px] font-semibold flex items-center gap-1 cursor-pointer"
+                    className="bg-[var(--bg-well)] hover:bg-[var(--bg-well-hover)] text-[var(--text-primary)] border border-[var(--border-hairline)] rounded-xl px-3 py-1.5 text-xs font-semibold flex items-center gap-1.5 cursor-pointer transition-colors"
                   >
-                    <Copy className="w-3 h-3" />
-                    COPY JSON
+                    <Copy className="w-3.5 h-3.5 text-[var(--accent)]" />
+                    Copy
                   </button>
                   <button
                     onClick={async () => {
@@ -1703,15 +1907,15 @@ export function App() {
                         engine.loadPreset(parsed);
                         setActivePresetName(parsed.name || 'Imported Patch');
                         syncFromEngine(parsed.name || 'Imported Patch');
-                        showToast('JSON Preset Loaded!');
+                        showToast('JSON preset loaded');
                       } catch {
-                        showToast('Invalid JSON Format');
+                        showToast('Invalid JSON format');
                       }
                     }}
-                    className="bg-[#101218] hover:bg-[#1e2230] text-[#b886ff] border border-[#384157] rounded px-2 py-1 font-mono-tech text-[10px] font-semibold flex items-center gap-1 cursor-pointer"
+                    className="bg-[var(--active-chip-bg)] text-[var(--active-chip-fg)] hover:opacity-90 rounded-xl px-3 py-1.5 text-xs font-semibold flex items-center gap-1.5 cursor-pointer transition-opacity"
                   >
-                    <Upload className="w-3 h-3" />
-                    LOAD JSON
+                    <Upload className="w-3.5 h-3.5" />
+                    Load
                   </button>
                 </div>
               </div>
@@ -1720,22 +1924,26 @@ export function App() {
                 value={jsonText}
                 onChange={(e) => setJsonText(e.target.value)}
                 spellCheck={false}
-                className="w-full h-[145px] bg-[#080a0f] border border-[#384157] rounded-md text-[#38e2c7] font-mono-tech text-[10px] p-2 resize-none outline-none select-text"
+                aria-label="Preset JSON Configuration"
+                className="w-full h-[220px] lg:h-[360px] bg-[var(--bg-well)] border border-[var(--border-hairline)] rounded-xl text-[var(--text-primary)] font-mono-tech text-[11px] p-3 resize-none outline-none select-text"
               />
-            </div>
+            </section>
           </div>
         )}
       </main>
 
       {/* BOTTOM 5-TAB HARDWARE NAVIGATION BAR */}
-      <nav className="grid grid-cols-5 bg-[#07080b] border-t border-[#252a38] pb-[env(safe-area-inset-bottom,0px)] shrink-0">
+      <nav
+        aria-label="Primary Workspace Tabs"
+        className="grid grid-cols-5 bg-[var(--bg-card)] border-t border-[var(--border-hairline)] pb-[env(safe-area-inset-bottom,0px)] shrink-0"
+      >
         {(
           [
-            { id: 'perform', label: 'PERFORM', icon: Activity },
-            { id: 'synth', label: 'SYNTH/GRAIN', icon: Sliders },
-            { id: 'mod3d', label: 'MOD & 3D', icon: Compass },
-            { id: 'keys', label: 'KEYS/ROLL', icon: Music },
-            { id: 'presets', label: 'PRESETS', icon: Disc }
+            { id: 'perform', label: 'Perform', icon: Activity },
+            { id: 'synth', label: 'Synth', icon: Sliders },
+            { id: 'mod3d', label: 'Mod 3D', icon: Compass },
+            { id: 'keys', label: 'Keys', icon: Music },
+            { id: 'presets', label: 'Presets', icon: Disc }
           ] as const
         ).map((tab) => {
           const Icon = tab.icon;
@@ -1744,13 +1952,13 @@ export function App() {
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
-              className={`py-2.5 px-1 font-mono-tech text-[10px] font-semibold cursor-pointer border-t-2 transition flex flex-col items-center justify-center gap-1 ${
+              className={`min-h-[54px] py-2 px-1 text-[11px] font-semibold cursor-pointer border-t-2 transition-colors flex flex-col items-center justify-center gap-1 whitespace-nowrap ${
                 isActive
-                  ? 'text-[#b886ff] border-t-[#b886ff] bg-[#b886ff]/8'
-                  : 'text-[#7f889f] border-t-transparent hover:text-[#e2e6f0]'
+                  ? 'text-[var(--accent)] border-t-[var(--accent)]'
+                  : 'text-[var(--text-secondary)] border-t-transparent hover:text-[var(--text-primary)]'
               }`}
             >
-              <Icon className="w-3.5 h-3.5" />
+              <Icon className="w-4 h-4" />
               <span>{tab.label}</span>
             </button>
           );
@@ -1759,8 +1967,10 @@ export function App() {
 
       {/* TOAST NOTIFICATION */}
       <div
-        className={`fixed bottom-[64px] left-1/2 -translate-x-1/2 bg-[#b886ff] text-[#07080b] font-mono-tech text-[11px] font-bold px-3.5 py-1.5 rounded-full pointer-events-none transition-all duration-200 z-50 shadow-[0_0_20px_rgba(184,134,255,0.5)] ${
-          toastMsg ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'
+        role="status"
+        aria-live="polite"
+        className={`fixed bottom-[70px] left-1/2 -translate-x-1/2 bg-[var(--active-chip-bg)] text-[var(--active-chip-fg)] font-mono-tech text-xs font-semibold px-4 py-2 rounded-full pointer-events-none transition-all duration-200 z-50 shadow-md ${
+          toastMsg ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-3'
         }`}
       >
         {toastMsg}

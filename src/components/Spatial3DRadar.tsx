@@ -4,22 +4,24 @@ import { EchoEngine, OrbitShapeType } from '../audio/EchoEngine';
 interface Spatial3DRadarProps {
   engine: EchoEngine;
   orbitShape: OrbitShapeType;
+  theme: 'light' | 'dark';
   onSelectOrbitShape: (shape: OrbitShapeType) => void;
   onEnsureRunning: () => Promise<void>;
 }
 
 const ORBIT_SHAPES: { id: OrbitShapeType; label: string }[] = [
-  { id: 'circle', label: '360° ORBIT' },
-  { id: 'figure8', label: 'FIGURE-8' },
-  { id: 'spiral', label: 'VORTEX SPIRAL' },
-  { id: 'stalker', label: 'STALKER (BEHIND)' },
-  { id: 'pendulum', label: 'PENDULUM' },
-  { id: 'manual', label: 'MANUAL TOUCH' }
+  { id: 'circle', label: '360° Orbit' },
+  { id: 'figure8', label: 'Figure-8' },
+  { id: 'spiral', label: 'Vortex' },
+  { id: 'stalker', label: 'Stalker' },
+  { id: 'pendulum', label: 'Pendulum' },
+  { id: 'manual', label: 'Manual' }
 ];
 
 export const Spatial3DRadar: React.FC<Spatial3DRadarProps> = ({
   engine,
   orbitShape,
+  theme,
   onSelectOrbitShape,
   onEnsureRunning
 }) => {
@@ -50,13 +52,24 @@ export const Spatial3DRadar: React.FC<Spatial3DRadarProps> = ({
       const dpr = window.devicePixelRatio || 1;
       const cx = w * 0.5;
       const cy = h * 0.5;
-      const maxR = Math.min(w, h) * 0.43;
+      const maxR = Math.min(w, h) * 0.42;
 
-      ctx.fillStyle = '#090b10';
+      const isDark = theme === 'dark';
+      const bg = isDark ? '#11100E' : '#ECEAE2';
+      const ringStroke = isDark ? 'rgba(242, 239, 233, 0.10)' : 'rgba(28, 27, 24, 0.12)';
+      const crossStroke = isDark ? 'rgba(242, 239, 233, 0.06)' : 'rgba(28, 27, 24, 0.07)';
+      const headStroke = isDark ? '#F2EFE9' : '#1C1B18';
+      const headFill = isDark ? '#1D1B18' : '#FFFFFF';
+      const accent = isDark ? '#E09145' : '#C24923';
+      const accentTrail = isDark ? 'rgba(224, 145, 69, 0.55)' : 'rgba(194, 73, 35, 0.48)';
+      const danger = isDark ? '#E05A47' : '#B91C1C';
+      const trackBg = isDark ? '#2E2B26' : '#D4D0C5';
+
+      ctx.fillStyle = bg;
       ctx.fillRect(0, 0, w, h);
 
-      // Distance rings
-      ctx.strokeStyle = 'rgba(184, 134, 255, 0.12)';
+      // Concentric distance rings
+      ctx.strokeStyle = ringStroke;
       ctx.lineWidth = 1 * dpr;
       [0.33, 0.66, 1.0].forEach((rFrac) => {
         ctx.beginPath();
@@ -65,7 +78,7 @@ export const Spatial3DRadar: React.FC<Spatial3DRadarProps> = ({
       });
 
       // Crosshairs
-      ctx.strokeStyle = 'rgba(255, 255, 255, 0.05)';
+      ctx.strokeStyle = crossStroke;
       ctx.beginPath();
       ctx.moveTo(cx - maxR, cy);
       ctx.lineTo(cx + maxR, cy);
@@ -73,36 +86,34 @@ export const Spatial3DRadar: React.FC<Spatial3DRadarProps> = ({
       ctx.lineTo(cx, cy + maxR);
       ctx.stroke();
 
-      // Listener head icon at origin
-      ctx.fillStyle = '#161922';
-      ctx.strokeStyle = '#7f889f';
-      ctx.lineWidth = 1.5 * dpr;
+      // Listener head + directional nose icon at origin
+      ctx.fillStyle = headFill;
+      ctx.strokeStyle = headStroke;
+      ctx.lineWidth = 1.6 * dpr;
       ctx.beginPath();
-      ctx.arc(cx, cy, 7 * dpr, 0, Math.PI * 2);
+      ctx.arc(cx, cy, 6.5 * dpr, 0, Math.PI * 2);
       ctx.fill();
       ctx.stroke();
 
-      // Nose pointer facing UP (-Z in Web Audio)
       ctx.beginPath();
-      ctx.moveTo(cx - 4 * dpr, cy - 6 * dpr);
-      ctx.lineTo(cx, cy - 12 * dpr);
-      ctx.lineTo(cx + 4 * dpr, cy - 6 * dpr);
-      ctx.strokeStyle = '#38e2c7';
+      ctx.moveTo(cx - 3.5 * dpr, cy - 6 * dpr);
+      ctx.lineTo(cx, cy - 11.5 * dpr);
+      ctx.lineTo(cx + 3.5 * dpr, cy - 6 * dpr);
+      ctx.strokeStyle = headStroke;
       ctx.stroke();
 
       const sp = engine.spatialTelemetry;
       const sx = cx + sp.x * maxR;
       const sz = cy + sp.z * maxR;
 
-      // Record trajectory trail
       if (engine.isRunning) {
         trailRef.current.push({ x: sp.x, z: sp.z });
-        if (trailRef.current.length > 38) {
+        if (trailRef.current.length > 36) {
           trailRef.current.shift();
         }
       }
 
-      // Draw trajectory trail
+      // Trajectory tail
       if (trailRef.current.length > 1) {
         ctx.beginPath();
         trailRef.current.forEach((pt, idx) => {
@@ -111,56 +122,58 @@ export const Spatial3DRadar: React.FC<Spatial3DRadarProps> = ({
           if (idx === 0) ctx.moveTo(px, pz);
           else ctx.lineTo(px, pz);
         });
-        ctx.strokeStyle = 'rgba(184, 134, 255, 0.38)';
-        ctx.lineWidth = 2 * dpr;
+        ctx.strokeStyle = accentTrail;
+        ctx.lineWidth = 2.2 * dpr;
         ctx.stroke();
       }
 
-      // Draw active 3D grains around the source
+      // Active 3D grains
       const nowPerf = performance.now();
       for (const g of engine.recentGrains) {
         const age = (nowPerf - g.bornAt) / (g.size * 1000 + 180);
         if (age < 1) {
           const gx = sx + g.x * (maxR * 0.35);
           const gz = sz + g.z * (maxR * 0.35);
-          ctx.fillStyle = g.reversed
-            ? `rgba(255, 77, 109, ${(1 - age) * 0.7})`
-            : `rgba(56, 226, 199, ${(1 - age) * 0.7})`;
+          ctx.globalAlpha = (1 - age) * 0.65;
+          ctx.fillStyle = g.reversed ? danger : accent;
           ctx.beginPath();
-          ctx.arc(gx, gz, (1 - age) * 3.5 * dpr, 0, Math.PI * 2);
+          ctx.arc(gx, gz, (1 - age) * 3 * dpr, 0, Math.PI * 2);
           ctx.fill();
+          ctx.globalAlpha = 1;
         }
       }
 
-      // Draw primary 3D Sound Source Puck
-      ctx.fillStyle = 'rgba(184, 134, 255, 0.25)';
-      ctx.strokeStyle = '#b886ff';
-      ctx.lineWidth = 2 * dpr;
+      // Primary 3D sound source ring puck
+      ctx.fillStyle = bg;
+      ctx.strokeStyle = accent;
+      ctx.lineWidth = 2.4 * dpr;
       ctx.beginPath();
-      ctx.arc(sx, sz, 10 * dpr, 0, Math.PI * 2);
+      ctx.arc(sx, sz, 8.5 * dpr, 0, Math.PI * 2);
       ctx.fill();
       ctx.stroke();
 
-      ctx.fillStyle = '#38e2c7';
+      ctx.fillStyle = accent;
       ctx.beginPath();
-      ctx.arc(sx, sz, 3.5 * dpr, 0, Math.PI * 2);
+      ctx.arc(sx, sz, 3.2 * dpr, 0, Math.PI * 2);
       ctx.fill();
 
-      // Elevation bar on right edge
-      const elevBarX = w - 14 * dpr;
-      const elevTop = cy - maxR * 0.8;
-      const elevBot = cy + maxR * 0.8;
-      ctx.strokeStyle = '#252a38';
+      // Elevation rail on right edge
+      const elevBarX = w - 16 * dpr;
+      const elevTop = cy - maxR * 0.78;
+      const elevBot = cy + maxR * 0.78;
+      ctx.strokeStyle = trackBg;
       ctx.lineWidth = 3 * dpr;
+      ctx.lineCap = 'round';
       ctx.beginPath();
       ctx.moveTo(elevBarX, elevTop);
       ctx.lineTo(elevBarX, elevBot);
       ctx.stroke();
+      ctx.lineCap = 'butt';
 
-      const elevY = cy - sp.y * (maxR * 0.8);
-      ctx.fillStyle = '#38e2c7';
+      const elevY = cy - sp.y * (maxR * 0.78);
+      ctx.fillStyle = accent;
       ctx.beginPath();
-      ctx.arc(elevBarX, elevY, 4.5 * dpr, 0, Math.PI * 2);
+      ctx.arc(elevBarX, elevY, 5 * dpr, 0, Math.PI * 2);
       ctx.fill();
     };
 
@@ -169,7 +182,7 @@ export const Spatial3DRadar: React.FC<Spatial3DRadarProps> = ({
       cancelAnimationFrame(animId);
       window.removeEventListener('resize', resize);
     };
-  }, [engine]);
+  }, [engine, theme]);
 
   const updatePointerPosition = (e: React.PointerEvent<HTMLCanvasElement>) => {
     const canvas = canvasRef.current;
@@ -184,26 +197,29 @@ export const Spatial3DRadar: React.FC<Spatial3DRadarProps> = ({
   };
 
   return (
-    <div className="flex flex-col gap-2.5">
-      {/* Orbit Trajectory Mode Pills */}
+    <div className="flex flex-col gap-3">
+      {/* Orbit Trajectory Mode Selectors */}
       <div className="grid grid-cols-3 sm:grid-cols-6 gap-1.5">
-        {ORBIT_SHAPES.map((s) => (
-          <button
-            key={s.id}
-            onClick={() => onSelectOrbitShape(s.id)}
-            className={`px-2 py-1.5 rounded text-[10px] font-mono-tech font-semibold border transition cursor-pointer ${
-              orbitShape === s.id
-                ? 'bg-[#b886ff]/20 border-[#b886ff] text-[#b886ff]'
-                : 'bg-[#101218] border-[#252a38] text-[#7f889f] hover:text-[#e2e6f0]'
-            }`}
-          >
-            {s.label}
-          </button>
-        ))}
+        {ORBIT_SHAPES.map((s) => {
+          const active = orbitShape === s.id;
+          return (
+            <button
+              key={s.id}
+              onClick={() => onSelectOrbitShape(s.id)}
+              className={`min-h-[40px] px-2 py-1.5 rounded-xl text-[11px] font-semibold border transition-colors cursor-pointer whitespace-nowrap ${
+                active
+                  ? 'bg-[var(--active-chip-bg)] border-[var(--active-chip-bg)] text-[var(--active-chip-fg)]'
+                  : 'bg-[var(--bg-well)] border-[var(--border-hairline)] text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
+              }`}
+            >
+              {s.label}
+            </button>
+          );
+        })}
       </div>
 
       {/* Interactive 3D Binaural Radar */}
-      <div className="relative w-full h-[185px] rounded-lg overflow-hidden border border-[#384157] bg-[#090b10]">
+      <div className="relative w-full h-[215px] rounded-xl overflow-hidden border border-[var(--border-hairline)] bg-[var(--bg-well)]">
         <canvas
           ref={canvasRef}
           onPointerDown={async (e) => {
@@ -222,14 +238,17 @@ export const Spatial3DRadar: React.FC<Spatial3DRadarProps> = ({
           }}
           className="w-full h-full block cursor-crosshair touch-none"
         />
-        <span className="absolute top-1.5 left-2 font-mono-tech text-[9px] text-[#7f889f] pointer-events-none">
-          ▲ FRONT (-Z) // DRAG SOURCE IN 3D SPACE
+        <span className="absolute top-2.5 left-3 font-mono-tech text-[10px] font-medium text-[var(--text-secondary)] pointer-events-none">
+          Front (-Z) · Drag Source
         </span>
-        <span className="absolute bottom-1.5 left-2 font-mono-tech text-[9px] text-[#ff4d6d]/80 pointer-events-none">
-          ▼ BEHIND HEAD (+Z STALKER ZONE)
+        <span className="absolute bottom-2.5 left-3 font-mono-tech text-[10px] font-medium text-[var(--text-muted)] pointer-events-none">
+          Behind (+Z)
         </span>
-        <span className="absolute top-1.5 right-5 font-mono-tech text-[9px] text-[#38e2c7] pointer-events-none">
-          ELEV
+        <span className="absolute top-2.5 right-6 font-mono-tech text-[10px] font-medium text-[var(--accent)] pointer-events-none">
+          +
+        </span>
+        <span className="absolute bottom-2.5 right-6 font-mono-tech text-[10px] font-medium text-[var(--text-muted)] pointer-events-none">
+          -
         </span>
       </div>
     </div>

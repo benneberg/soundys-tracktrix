@@ -1,26 +1,58 @@
 @import "tailwindcss";
+@custom-variant dark (&:where(.dark, .dark *));
 
 :root {
-  --bg-deep: #07080b;
-  --bg-panel: #101218;
-  --bg-card: #161922;
-  --bg-well: #090b10;
-  --border: #252a38;
-  --border-hi: #384157;
-  --text-main: #e2e6f0;
-  --text-muted: #7f889f;
-  --text-dim: #4b5563;
-  --accent: #b886ff;
-  --accent-dim: rgba(184, 134, 255, 0.16);
-  --cyan: #38e2c7;
-  --cyan-dim: rgba(56, 226, 199, 0.15);
-  --danger: #ff4d6d;
-  --danger-dim: rgba(255, 77, 109, 0.18);
-  --warn: #f59e0b;
-  --warn-dim: rgba(245, 158, 11, 0.16);
-  --font-mono: 'JetBrains Mono', 'SFMono-Regular', Consolas, monospace;
-  --font-display: 'Space Grotesk', -apple-system, BlinkMacSystemFont, sans-serif;
-  --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  /* Alabaster / Braun Lab (Light Mode) */
+  --bg-canvas: #F5F4EE;
+  --bg-panel: #F5F4EE;
+  --bg-card: #FFFFFF;
+  --bg-well: #ECEAE2;
+  --bg-well-hover: #E2DFD4;
+  --border-hairline: #E0DDD3;
+  --border-strong: #C9C4B6;
+  --text-primary: #1C1B18;
+  --text-secondary: #68635A;
+  --text-muted: #8C867B;
+  --accent: #C24923;
+  --accent-hover: #A93C1A;
+  --accent-soft: rgba(194, 73, 35, 0.11);
+  --accent-fg: #FFFFFF;
+  --signal: #C24923;
+  --danger: #B91C1C;
+  --danger-soft: rgba(185, 28, 28, 0.09);
+  --active-chip-bg: #1C1B18;
+  --active-chip-fg: #F5F4EE;
+  --thumb-bg: #FFFFFF;
+  --thumb-border: #C9C4B6;
+  --track-bg: #E2DFD4;
+  --font-sans: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, monospace;
+}
+
+.dark {
+  /* Warm Espresso / Analog Rack (Dark Mode) */
+  --bg-canvas: #131210;
+  --bg-panel: #161512;
+  --bg-card: #1D1B18;
+  --bg-well: #11100E;
+  --bg-well-hover: #26231F;
+  --border-hairline: #2E2B26;
+  --border-strong: #433E37;
+  --text-primary: #F2EFE9;
+  --text-secondary: #A19A8E;
+  --text-muted: #706A60;
+  --accent: #E09145;
+  --accent-hover: #EDA25A;
+  --accent-soft: rgba(224, 145, 69, 0.14);
+  --accent-fg: #141311;
+  --signal: #E09145;
+  --danger: #E05A47;
+  --danger-soft: rgba(224, 90, 71, 0.14);
+  --active-chip-bg: #F2EFE9;
+  --active-chip-fg: #141311;
+  --thumb-bg: #F2EFE9;
+  --thumb-border: #131210;
+  --track-bg: #2A2722;
 }
 
 * {
@@ -28,17 +60,19 @@
   -webkit-tap-highlight-color: transparent;
 }
 
-html, body {
+html,
+body {
   margin: 0;
   padding: 0;
   width: 100%;
   height: 100%;
-  background-color: var(--bg-deep);
-  color: var(--text-main);
+  background-color: var(--bg-canvas);
+  color: var(--text-primary);
   font-family: var(--font-sans);
   overflow: hidden;
   touch-action: manipulation;
   user-select: none;
+  transition: background-color 180ms cubic-bezier(0.16, 1, 0.3, 1), color 180ms cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .font-mono-tech {
@@ -47,78 +81,88 @@ html, body {
 }
 
 .font-display-tech {
-  font-family: var(--font-display);
+  font-family: var(--font-sans);
+  letter-spacing: -0.015em;
 }
 
-/* Custom Hardware Range Sliders */
+/* Tactile Hardware Range Sliders (Pill/Capsule Thumb) */
 input[type="range"].synth-slider {
   -webkit-appearance: none;
   appearance: none;
   width: 100%;
-  height: 22px;
+  height: 28px;
   background: transparent;
   margin: 0;
   cursor: pointer;
 }
 
-input[type="range"].synth-slider:focus {
-  outline: none;
+input[type="range"].synth-slider:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 6px;
 }
 
 input[type="range"].synth-slider::-webkit-slider-runnable-track {
-  height: 6px;
-  border-radius: 3px;
-  background: #080a0f;
-  border: 1px solid #2b3245;
-  box-shadow: inset 0 1px 3px rgba(0,0,0,0.8);
+  height: 4px;
+  border-radius: 9999px;
+  background: var(--track-bg);
 }
 
 input[type="range"].synth-slider::-webkit-slider-thumb {
   -webkit-appearance: none;
   appearance: none;
-  width: 16px;
-  height: 16px;
-  border-radius: 50%;
-  background: var(--accent);
-  border: 2px solid #f4f6fb;
-  margin-top: -6px;
-  box-shadow: 0 0 10px rgba(184, 134, 255, 0.6), 0 2px 4px rgba(0, 0, 0, 0.6);
-  transition: transform 0.1s ease, background-color 0.15s ease;
+  width: 22px;
+  height: 14px;
+  border-radius: 9999px;
+  background: var(--thumb-bg);
+  border: 1.5px solid var(--thumb-border);
+  margin-top: -5px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
+  transition: transform 140ms cubic-bezier(0.16, 1, 0.3, 1), border-color 140ms ease;
 }
 
+input[type="range"].synth-slider:hover::-webkit-slider-thumb,
 input[type="range"].synth-slider:active::-webkit-slider-thumb {
-  transform: scale(1.18);
-  background: var(--cyan);
-  box-shadow: 0 0 14px rgba(56, 226, 199, 0.85);
+  transform: scale(1.08);
+  border-color: var(--accent);
 }
 
-input[type="range"].synth-slider.cyan-slider::-webkit-slider-thumb {
-  background: var(--cyan);
-  box-shadow: 0 0 10px rgba(56, 226, 199, 0.55);
+input[type="range"].synth-slider::-moz-range-track {
+  height: 4px;
+  border-radius: 9999px;
+  background: var(--track-bg);
 }
 
-input[type="range"].synth-slider.amber-slider::-webkit-slider-thumb {
-  background: var(--warn);
-  box-shadow: 0 0 10px rgba(245, 158, 11, 0.55);
+input[type="range"].synth-slider::-moz-range-thumb {
+  width: 22px;
+  height: 14px;
+  border-radius: 9999px;
+  background: var(--thumb-bg);
+  border: 1.5px solid var(--thumb-border);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
 }
 
-input[type="range"].synth-slider.danger-slider::-webkit-slider-thumb {
-  background: var(--danger);
-  box-shadow: 0 0 10px rgba(255, 77, 109, 0.55);
+input[type="range"].synth-slider.danger-slider:hover::-webkit-slider-thumb,
+input[type="range"].synth-slider.danger-slider:active::-webkit-slider-thumb {
+  border-color: var(--danger);
 }
 
-/* Subtle dark scrollbars */
+/* Custom Clean Scrollbars */
 ::-webkit-scrollbar {
   width: 5px;
   height: 5px;
 }
 ::-webkit-scrollbar-track {
-  background: #090b10;
+  background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  background: #252a38;
-  border-radius: 3px;
+  background: var(--border-strong);
+  border-radius: 9999px;
 }
-::-webkit-scrollbar-thumb:hover {
-  background: #384157;
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
 }

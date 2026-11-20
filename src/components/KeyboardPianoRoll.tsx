@@ -15,7 +15,7 @@ export const KeyboardPianoRoll: React.FC<KeyboardPianoRollProps> = ({
   onEnsureRunning
 }) => {
   const [scaleId, setScaleId] = useState<string>('locrian');
-  const [octave, setOctave] = useState<number>(2); // 1 = ~32Hz, 2 = ~65Hz, 3 = ~130Hz, 4 = ~261Hz
+  const [octave, setOctave] = useState<number>(2);
   const [routeMode, setRouteMode] = useState<'both' | 'lead' | 'drone'>('both');
   const [droneLatch, setDroneLatch] = useState<boolean>(false);
   const [activeKeyIdx, setActiveKeyIdx] = useState<number | null>(null);
@@ -26,13 +26,12 @@ export const KeyboardPianoRoll: React.FC<KeyboardPianoRollProps> = ({
   const [bpm, setBpm] = useState<number>(112);
   const [stepProb, setStepProb] = useState<number>(0.92);
   const [currentStep, setCurrentStep] = useState<number>(0);
-  const [steps, setSteps] = useState<SequencerStep[]>(() =>
+  const [steps, setSteps] = useState<SequencerStepState[]>(() =>
     SEQUENCER_PATTERNS[0].steps.map((s) => ({ ...s }))
   );
 
   const currentScale = SCALES.find((s) => s.id === scaleId) || SCALES[0];
 
-  // Calculate frequency in Hz for a given scale degree index (0..12)
   const getDegreeFreq = (degreeIdx: number, oct = octave): number => {
     const baseRoot = engine.params.synth.baseFreq || 55.0;
     const octMult = Math.pow(2, oct - 2);
@@ -43,7 +42,6 @@ export const KeyboardPianoRoll: React.FC<KeyboardPianoRollProps> = ({
     return baseRoot * octMult * Math.pow(2, semitones / 12);
   };
 
-  // Trigger a note from keyboard or sequencer
   const playDegree = async (degreeIdx: number, duration = 0.4, velocity = 0.85, modY = 0.5) => {
     await onEnsureRunning();
     const freq = getDegreeFreq(degreeIdx);
@@ -64,7 +62,6 @@ export const KeyboardPianoRoll: React.FC<KeyboardPianoRollProps> = ({
     }
   };
 
-  // Computer Keyboard Jamming Support
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.repeat || ['INPUT', 'TEXTAREA', 'SELECT'].includes((e.target as HTMLElement)?.tagName)) {
@@ -92,7 +89,6 @@ export const KeyboardPianoRoll: React.FC<KeyboardPianoRollProps> = ({
     };
   });
 
-  // 16-Step Sequencer Clock Loop
   const stepsRef = useRef(steps);
   stepsRef.current = steps;
   const scaleRef = useRef(currentScale);
@@ -106,7 +102,7 @@ export const KeyboardPianoRoll: React.FC<KeyboardPianoRollProps> = ({
 
   useEffect(() => {
     if (!seqPlaying) return;
-    const stepMs = (60 / bpm / 4) * 1000; // 16th notes
+    const stepMs = (60 / bpm / 4) * 1000;
     const timer = setInterval(() => {
       setCurrentStep((prev) => {
         const next = (prev + 1) % 16;
@@ -153,7 +149,7 @@ export const KeyboardPianoRoll: React.FC<KeyboardPianoRollProps> = ({
   };
 
   const handleRandomizePattern = () => {
-    const newSteps: SequencerStep[] = Array.from({ length: 16 }, (_, i) => {
+    const newSteps: SequencerStepState[] = Array.from({ length: 16 }, (_, i) => {
       const active = i % 4 === 0 ? true : Math.random() < 0.62;
       const noteIndex = i === 0 ? 0 : Math.floor(Math.random() * 12);
       const velocity = Number((0.55 + Math.random() * 0.45).toFixed(2));
@@ -182,39 +178,37 @@ export const KeyboardPianoRoll: React.FC<KeyboardPianoRollProps> = ({
         return { ...st, active: true, noteIndex: rowNoteIdx };
       })
     );
-    // Audition note immediately on tap
     await playDegree(rowNoteIdx, 0.25, 0.8, 0.6);
     if (!droneLatch && !seqPlaying) {
       setTimeout(() => engine.setDroneNote(null, 0.15), 240);
     }
   };
 
-  // Display rows 11 down to 0 in the Piano Roll matrix
   const rows = [11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0];
 
   return (
-    <div className="flex flex-col gap-3">
+    <div className="flex flex-col gap-4">
       {/* CARD 1: SCALE, TUNING & RIBBON KEYBOARD */}
-      <div className="bg-[#161922] border border-[#252a38] rounded-lg p-3">
-        <div className="flex flex-wrap justify-between items-center gap-2 mb-2.5">
-          <span className="font-display-tech text-[11px] font-bold uppercase tracking-wider text-[#7f889f]">
-            Microtonal & Dark Scale Ribbon Keyboard
-          </span>
-          <span className="font-mono-tech text-[10px] text-[#38e2c7]">
-            Y-AXIS SLIDE = FILTER & FM MOD
+      <section className="bg-[var(--bg-card)] border border-[var(--border-hairline)] rounded-2xl p-4">
+        <div className="flex flex-wrap justify-between items-baseline gap-2 mb-3">
+          <h2 className="font-display-tech text-sm font-semibold text-[var(--text-primary)]">
+            Microtonal Ribbon Keyboard
+          </h2>
+          <span className="font-mono-tech text-[11px] text-[var(--text-secondary)]">
+            Vertical slide controls Filter & FM
           </span>
         </div>
 
         {/* Scale, Octave & Routing Controls */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-3">
-          <div className="col-span-2">
-            <label className="block font-mono-tech text-[10px] text-[#7f889f] mb-1">
-              SCALE / MICROTONAL TUNING
+        <div className="grid grid-cols-1 sm:grid-cols-4 gap-3 mb-3">
+          <div className="sm:col-span-2">
+            <label className="block text-xs font-medium text-[var(--text-secondary)] mb-1">
+              Scale & Tuning
             </label>
             <select
               value={scaleId}
               onChange={(e) => setScaleId(e.target.value)}
-              className="bg-[#090b10] text-[#e2e6f0] border border-[#384157] rounded-md px-2.5 py-1.5 font-mono-tech text-[11px] w-full outline-none"
+              className="bg-[var(--bg-well)] text-[var(--text-primary)] border border-[var(--border-hairline)] rounded-xl px-3 py-2 text-xs font-medium w-full outline-none min-h-[40px]"
             >
               {SCALES.map((sc) => (
                 <option key={sc.id} value={sc.id}>
@@ -225,18 +219,18 @@ export const KeyboardPianoRoll: React.FC<KeyboardPianoRollProps> = ({
           </div>
 
           <div>
-            <label className="block font-mono-tech text-[10px] text-[#7f889f] mb-1">
-              OCTAVE RANGE
+            <label className="block text-xs font-medium text-[var(--text-secondary)] mb-1">
+              Octave
             </label>
             <div className="grid grid-cols-4 gap-1">
               {[1, 2, 3, 4].map((oct) => (
                 <button
                   key={oct}
                   onClick={() => setOctave(oct)}
-                  className={`py-1.5 rounded font-mono-tech text-[11px] font-bold border cursor-pointer ${
+                  className={`min-h-[40px] rounded-xl font-mono-tech text-xs font-semibold border cursor-pointer transition-colors ${
                     octave === oct
-                      ? 'bg-[#b886ff]/20 border-[#b886ff] text-[#b886ff]'
-                      : 'bg-[#090b10] border-[#252a38] text-[#7f889f]'
+                      ? 'bg-[var(--active-chip-bg)] border-[var(--active-chip-bg)] text-[var(--active-chip-fg)]'
+                      : 'bg-[var(--bg-well)] border-[var(--border-hairline)] text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
                   }`}
                 >
                   O{oct}
@@ -246,13 +240,13 @@ export const KeyboardPianoRoll: React.FC<KeyboardPianoRollProps> = ({
           </div>
 
           <div>
-            <label className="block font-mono-tech text-[10px] text-[#7f889f] mb-1">
-              VOICE TARGET
+            <label className="block text-xs font-medium text-[var(--text-secondary)] mb-1">
+              Voice Target
             </label>
             <select
               value={routeMode}
               onChange={(e) => setRouteMode(e.target.value as 'both' | 'lead' | 'drone')}
-              className="bg-[#090b10] text-[#38e2c7] border border-[#384157] rounded-md px-2 py-1.5 font-mono-tech text-[11px] w-full outline-none"
+              className="bg-[var(--bg-well)] text-[var(--text-primary)] border border-[var(--border-hairline)] rounded-xl px-3 py-2 text-xs font-medium w-full outline-none min-h-[40px]"
             >
               <option value="both">Lead + Drone Root</option>
               <option value="lead">Poly Lead Voice</option>
@@ -262,8 +256,8 @@ export const KeyboardPianoRoll: React.FC<KeyboardPianoRollProps> = ({
         </div>
 
         {/* Scale description + Drone Latch button */}
-        <div className="flex items-center justify-between gap-2 mb-2.5 bg-[#090b10] px-2.5 py-1.5 rounded border border-[#252a38]">
-          <span className="text-[10px] text-[#7f889f] font-mono-tech truncate">
+        <div className="flex flex-wrap items-center justify-between gap-2 mb-3 px-3 py-2 rounded-xl bg-[var(--bg-well)] border border-[var(--border-hairline)]">
+          <span className="text-xs text-[var(--text-secondary)] truncate">
             {currentScale.description}
           </span>
           <button
@@ -272,19 +266,19 @@ export const KeyboardPianoRoll: React.FC<KeyboardPianoRollProps> = ({
               setDroneLatch(next);
               if (!next) engine.setDroneNote(null, 0.2);
             }}
-            className={`px-2 py-0.5 rounded font-mono-tech text-[10px] font-semibold flex items-center gap-1 border shrink-0 cursor-pointer ${
+            className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 border shrink-0 cursor-pointer transition-colors whitespace-nowrap ${
               droneLatch
-                ? 'bg-[#38e2c7]/20 border-[#38e2c7] text-[#38e2c7]'
-                : 'bg-[#161922] border-[#384157] text-[#7f889f]'
+                ? 'bg-[var(--accent)] border-[var(--accent)] text-[var(--accent-fg)]'
+                : 'bg-[var(--bg-card)] border-[var(--border-hairline)] text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
             }`}
           >
-            {droneLatch ? <Lock className="w-3 h-3" /> : <Unlock className="w-3 h-3" />}
-            {droneLatch ? 'DRONE LATCHED' : 'LATCH DRONE'}
+            {droneLatch ? <Lock className="w-3.5 h-3.5" /> : <Unlock className="w-3.5 h-3.5" />}
+            {droneLatch ? 'Drone Latched' : 'Latch Drone'}
           </button>
         </div>
 
         {/* 13-Key Playable Touch Ribbon */}
-        <div className="grid grid-cols-13 gap-1 h-[96px] select-none touch-none">
+        <div className="grid grid-cols-13 gap-1 h-[104px] select-none touch-none">
           {Array.from({ length: 13 }, (_, idx) => {
             const freq = getDegreeFreq(idx);
             const semi =
@@ -314,48 +308,47 @@ export const KeyboardPianoRoll: React.FC<KeyboardPianoRollProps> = ({
                 }}
                 onPointerUp={releaseKey}
                 onPointerCancel={releaseKey}
-                className={`relative rounded-md border flex flex-col justify-between items-center p-1 cursor-pointer transition-all overflow-hidden ${
+                className={`relative rounded-xl border flex flex-col justify-between items-center py-2 px-0.5 cursor-pointer transition-all overflow-hidden ${
                   isActive
-                    ? 'bg-[#b886ff]/30 border-[#38e2c7] shadow-[0_0_12px_rgba(56,226,199,0.4)] translate-y-[1px]'
+                    ? 'bg-[var(--accent-soft)] border-[var(--accent)] translate-y-[1px]'
                     : isMicro
-                    ? 'bg-[#12101b] border-[#b886ff]/40 hover:border-[#b886ff]'
+                    ? 'bg-[var(--bg-well)] border-[var(--border-strong)] hover:border-[var(--accent)]'
                     : idx === 0 || idx === 12
-                    ? 'bg-[#121820] border-[#38e2c7]/45 hover:border-[#38e2c7]'
-                    : 'bg-[#090b10] border-[#252a38] hover:border-[#384157]'
+                    ? 'bg-[var(--bg-card)] border-[var(--border-strong)] hover:border-[var(--accent)]'
+                    : 'bg-[var(--bg-well)] border-[var(--border-hairline)] hover:border-[var(--border-strong)]'
                 }`}
               >
-                {/* Vertical expression fill bar */}
                 {isActive && (
                   <div
-                    className="absolute bottom-0 left-0 right-0 bg-[#38e2c7]/25 pointer-events-none"
+                    className="absolute bottom-0 left-0 right-0 bg-[var(--accent-soft)] pointer-events-none"
                     style={{ height: `${keyModY * 100}%` }}
                   />
                 )}
-                <span className="font-mono-tech text-[8px] text-[#7f889f] z-10">
+                <span className="font-mono-tech text-[9px] text-[var(--text-muted)] z-10">
                   {KEYBOARD_SHORTCUTS[idx]}
                 </span>
-                <span className="font-mono-tech text-[9px] font-bold text-[#e2e6f0] z-10">
+                <span className="font-mono-tech text-[10px] font-semibold text-[var(--text-primary)] z-10">
                   +{semi.toFixed(semi % 1 === 0 ? 0 : 1)}
                 </span>
-                <span className="font-mono-tech text-[8px] text-[#38e2c7] z-10">
+                <span className="font-mono-tech text-[9px] text-[var(--text-secondary)] z-10">
                   {Math.round(freq)}
                 </span>
               </div>
             );
           })}
         </div>
-      </div>
+      </section>
 
-      {/* CARD 2: 16-STEP DARK SEQUENCER / PIANO ROLL */}
-      <div className="bg-[#161922] border border-[#252a38] rounded-lg p-3">
-        <div className="flex flex-wrap justify-between items-center gap-2 mb-2.5">
-          <div className="flex items-center gap-2">
-            <span className="font-display-tech text-[11px] font-bold uppercase tracking-wider text-[#7f889f]">
-              16-Step Dark Piano Roll Sequencer
-            </span>
+      {/* CARD 2: 16-STEP SEQUENCER / PIANO ROLL */}
+      <section className="bg-[var(--bg-card)] border border-[var(--border-hairline)] rounded-2xl p-4">
+        <div className="flex flex-wrap justify-between items-center gap-2 mb-3">
+          <div className="flex items-baseline gap-2.5">
+            <h2 className="font-display-tech text-sm font-semibold text-[var(--text-primary)]">
+              16-Step Piano Roll Sequencer
+            </h2>
             {seqPlaying && (
-              <span className="px-1.5 py-0.5 rounded bg-[#38e2c7]/15 text-[#38e2c7] font-mono-tech text-[9px] font-bold">
-                STEP {currentStep + 1}/16
+              <span className="font-mono-tech text-xs font-semibold text-[var(--accent)]">
+                Step {currentStep + 1} / 16
               </span>
             )}
           </div>
@@ -363,36 +356,37 @@ export const KeyboardPianoRoll: React.FC<KeyboardPianoRollProps> = ({
           <div className="flex items-center gap-1.5">
             <button
               onClick={handleRandomizePattern}
-              title="Generate Random Dark Pattern"
-              className="bg-[#101218] hover:bg-[#1d2230] text-[#b886ff] border border-[#384157] rounded px-2 py-1 font-mono-tech text-[10px] font-semibold flex items-center gap-1 cursor-pointer"
+              title="Generate Random Pattern"
+              className="min-h-[38px] bg-[var(--bg-well)] hover:bg-[var(--bg-well-hover)] text-[var(--text-primary)] border border-[var(--border-hairline)] rounded-xl px-3 py-1.5 text-xs font-semibold flex items-center gap-1.5 cursor-pointer transition-colors"
             >
-              <Dices className="w-3 h-3" />
-              GEN
+              <Dices className="w-3.5 h-3.5 text-[var(--accent)]" />
+              Generate
             </button>
             <button
               onClick={handleClearPattern}
               title="Clear All Steps"
-              className="bg-[#101218] hover:bg-[#1d2230] text-[#7f889f] hover:text-[#ff4d6d] border border-[#252a38] rounded px-2 py-1 font-mono-tech text-[10px] flex items-center gap-1 cursor-pointer"
+              aria-label="Clear All Steps"
+              className="min-h-[38px] min-w-[38px] bg-[var(--bg-well)] hover:bg-[var(--bg-well-hover)] text-[var(--text-secondary)] hover:text-[var(--danger)] border border-[var(--border-hairline)] rounded-xl p-2 flex items-center justify-center cursor-pointer transition-colors"
             >
-              <Trash2 className="w-3 h-3" />
+              <Trash2 className="w-3.5 h-3.5" />
             </button>
             <button
               onClick={handleToggleSeq}
-              className={`px-3 py-1 rounded font-mono-tech text-[10px] font-bold flex items-center gap-1 border cursor-pointer transition ${
+              className={`min-h-[38px] px-4 py-1.5 rounded-xl text-xs font-semibold flex items-center gap-1.5 border cursor-pointer transition-colors whitespace-nowrap ${
                 seqPlaying
-                  ? 'bg-[#38e2c7]/20 border-[#38e2c7] text-[#38e2c7]'
-                  : 'bg-[#b886ff]/20 border-[#b886ff] text-[#b886ff]'
+                  ? 'bg-[var(--accent)] border-[var(--accent)] text-[var(--accent-fg)]'
+                  : 'bg-[var(--active-chip-bg)] border-[var(--active-chip-bg)] text-[var(--active-chip-fg)]'
               }`}
             >
               {seqPlaying ? (
                 <>
                   <Square className="w-3 h-3 fill-current" />
-                  STOP SEQ
+                  Stop
                 </>
               ) : (
                 <>
                   <Play className="w-3 h-3 fill-current" />
-                  PLAY SEQ
+                  Play
                 </>
               )}
             </button>
@@ -400,15 +394,15 @@ export const KeyboardPianoRoll: React.FC<KeyboardPianoRollProps> = ({
         </div>
 
         {/* Pattern Preset Bar + BPM & Probability Sliders */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 mb-3">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-3">
           <div>
-            <div className="flex justify-between font-mono-tech text-[10px] mb-1">
-              <span className="text-[#7f889f]">PATTERN MOTIF</span>
-            </div>
+            <label className="block text-xs font-medium text-[var(--text-secondary)] mb-1">
+              Pattern Motif
+            </label>
             <select
               onChange={(e) => handleLoadPattern(e.target.value)}
               defaultValue={SEQUENCER_PATTERNS[0].id}
-              className="bg-[#090b10] text-[#e2e6f0] border border-[#384157] rounded-md px-2 py-1.5 font-mono-tech text-[11px] w-full outline-none"
+              className="bg-[var(--bg-well)] text-[var(--text-primary)] border border-[var(--border-hairline)] rounded-xl px-3 py-2 text-xs font-medium w-full outline-none min-h-[40px]"
             >
               {SEQUENCER_PATTERNS.map((p) => (
                 <option key={p.id} value={p.id}>
@@ -419,9 +413,9 @@ export const KeyboardPianoRoll: React.FC<KeyboardPianoRollProps> = ({
           </div>
 
           <div>
-            <div className="flex justify-between font-mono-tech text-[10px] mb-1">
-              <span className="text-[#e2e6f0]">Tempo (BPM)</span>
-              <span className="text-[#38e2c7]">{bpm} BPM</span>
+            <div className="flex justify-between text-xs mb-1">
+              <span className="font-medium text-[var(--text-primary)]">Tempo</span>
+              <span className="font-mono-tech text-[var(--accent)]">{bpm} BPM</span>
             </div>
             <input
               type="range"
@@ -430,14 +424,14 @@ export const KeyboardPianoRoll: React.FC<KeyboardPianoRollProps> = ({
               step={1}
               value={bpm}
               onChange={(e) => setBpm(Number(e.target.value))}
-              className="synth-slider cyan-slider"
+              className="synth-slider"
             />
           </div>
 
           <div>
-            <div className="flex justify-between font-mono-tech text-[10px] mb-1">
-              <span className="text-[#e2e6f0]">Step Probability</span>
-              <span className="text-[#38e2c7]">{Math.round(stepProb * 100)}%</span>
+            <div className="flex justify-between text-xs mb-1">
+              <span className="font-medium text-[var(--text-primary)]">Step Probability</span>
+              <span className="font-mono-tech text-[var(--accent)]">{Math.round(stepProb * 100)}%</span>
             </div>
             <input
               type="range"
@@ -452,17 +446,15 @@ export const KeyboardPianoRoll: React.FC<KeyboardPianoRollProps> = ({
         </div>
 
         {/* 16-Step x 12-Degree Piano Roll Matrix */}
-        <div className="bg-[#090b10] border border-[#252a38] rounded-md p-1.5 overflow-x-auto">
-          <div className="min-w-[440px] flex flex-col gap-[2px]">
+        <div className="bg-[var(--bg-well)] border border-[var(--border-hairline)] rounded-xl p-2 overflow-x-auto">
+          <div className="min-w-[460px] flex flex-col gap-[3px]">
             {rows.map((rowNoteIdx) => {
               const semi = currentScale.semitones[rowNoteIdx % currentScale.semitones.length];
               return (
-                <div key={rowNoteIdx} className="grid grid-cols-17 gap-[2px] items-center">
-                  {/* Degree Label Column */}
-                  <div className="font-mono-tech text-[9px] text-[#7f889f] pr-1 text-right">
+                <div key={rowNoteIdx} className="grid grid-cols-17 gap-[3px] items-center">
+                  <div className="font-mono-tech text-[10px] text-[var(--text-secondary)] pr-1.5 text-right">
                     +{semi.toFixed(semi % 1 === 0 ? 0 : 1)}
                   </div>
-                  {/* 16 Step Cells */}
                   {steps.map((st, stepIdx) => {
                     const isFilled = st.active && st.noteIndex === rowNoteIdx;
                     const isPlayhead = seqPlaying && currentStep === stepIdx;
@@ -472,16 +464,17 @@ export const KeyboardPianoRoll: React.FC<KeyboardPianoRollProps> = ({
                       <button
                         key={stepIdx}
                         onClick={() => handleCellClick(stepIdx, rowNoteIdx)}
-                        className={`h-[15px] rounded-[2px] border transition-colors cursor-pointer ${
+                        aria-label={`Step ${stepIdx + 1}, degree +${semi}`}
+                        className={`h-[17px] rounded-[4px] border transition-colors cursor-pointer ${
                           isFilled
                             ? isPlayhead
-                              ? 'bg-[#38e2c7] border-white shadow-[0_0_8px_#38e2c7]'
-                              : 'bg-[#b886ff] border-[#b886ff]/80'
+                              ? 'bg-[var(--active-chip-bg)] border-[var(--active-chip-bg)]'
+                              : 'bg-[var(--accent)] border-[var(--accent)]'
                             : isPlayhead
-                            ? 'bg-[#38e2c7]/15 border-[#38e2c7]/40'
+                            ? 'bg-[var(--accent-soft)] border-[var(--accent)]'
                             : isBeatMarker
-                            ? 'bg-[#141822] border-[#252a38] hover:border-[#384157]'
-                            : 'bg-[#0d1017] border-[#1b202c] hover:border-[#384157]'
+                            ? 'bg-[var(--bg-card)] border-[var(--border-strong)] hover:border-[var(--accent)]'
+                            : 'bg-transparent border-[var(--border-hairline)] hover:border-[var(--border-strong)]'
                         }`}
                       />
                     );
@@ -491,7 +484,9 @@ export const KeyboardPianoRoll: React.FC<KeyboardPianoRollProps> = ({
             })}
           </div>
         </div>
-      </div>
+      </section>
     </div>
   );
 };
+
+type SequencerStepState = SequencerStep;
