@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { EchoEngine } from '../audio/EchoEngine';
-import { Activity, Compass, Dices, Power, Sparkles } from 'lucide-react';
+import { Activity, Compass, Dices, Power, RotateCcw, Sparkles } from 'lucide-react';
 
 interface VisualizerHeaderProps {
   engine: EchoEngine;
@@ -10,6 +10,7 @@ interface VisualizerHeaderProps {
   onMutate: () => void;
   onRollSeed: () => void;
   onSeedChange: (newSeed: string) => void;
+  onResetAudio: () => void;
 }
 
 export const VisualizerHeader: React.FC<VisualizerHeaderProps> = ({
@@ -19,7 +20,8 @@ export const VisualizerHeader: React.FC<VisualizerHeaderProps> = ({
   onTogglePower,
   onMutate,
   onRollSeed,
-  onSeedChange
+  onSeedChange,
+  onResetAudio
 }) => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const [visMode, setVisMode] = useState<'scope' | 'vector'>('scope');
@@ -211,12 +213,20 @@ export const VisualizerHeader: React.FC<VisualizerHeaderProps> = ({
 
         <div className="flex items-center gap-1.5">
           <button
+            onClick={onResetAudio}
+            title="Reset Audio Engine Graph"
+            className="bg-[#161922] hover:bg-[#1e2230] active:scale-95 text-[#7f889f] hover:text-[#38e2c7] border border-[#384157] rounded-md p-2 cursor-pointer transition flex items-center justify-center"
+          >
+            <RotateCcw className="w-3.5 h-3.5" />
+          </button>
+
+          <button
             onClick={onMutate}
             title="Mutate Soundscape Parameters"
             className="bg-[#161922] hover:bg-[#1e2230] active:scale-95 text-[#e2e6f0] border border-[#384157] rounded-md px-2.5 py-2 font-mono-tech text-[11px] font-semibold cursor-pointer transition flex items-center gap-1.5"
           >
             <Sparkles className="w-3.5 h-3.5 text-[#b886ff]" />
-            <span>MUTATE</span>
+            <span className="hidden sm:inline">MUTATE</span>
           </button>
 
           <button

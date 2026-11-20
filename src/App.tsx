@@ -14,11 +14,14 @@ import { KeyboardPianoRoll } from './components/KeyboardPianoRoll';
 import {
   Activity,
   BookmarkPlus,
+  ChevronDown,
+  ChevronUp,
   Compass,
   Copy,
   Disc,
   Music,
   Sliders,
+  SlidersHorizontal,
   Trash2,
   Upload
 } from 'lucide-react';
@@ -69,6 +72,8 @@ export function App() {
   );
   const [toastMsg, setToastMsg] = useState<string | null>(null);
   const [flashingEvent, setFlashingEvent] = useState<string | null>(null);
+  const [showAdvancedSynth, setShowAdvancedSynth] = useState<boolean>(false);
+  const [showAdvancedMod, setShowAdvancedMod] = useState<boolean>(false);
 
   // XY Pad Ref
   const xyPadRef = useRef<HTMLDivElement | null>(null);
@@ -135,6 +140,12 @@ export function App() {
     engine.applySeedIdentity(newSeed);
     syncFromEngine();
     showToast(`Seed Applied: ${newSeed}`);
+  };
+
+  const handleResetAudio = async () => {
+    await engine.panicReset();
+    syncFromEngine();
+    showToast('Audio Engine Reset');
   };
 
   // Update a parameter in a category
@@ -239,6 +250,7 @@ export function App() {
         onMutate={handleMutate}
         onRollSeed={handleRollSeed}
         onSeedChange={handleSeedChange}
+        onResetAudio={handleResetAudio}
       />
 
       {/* MAIN SCROLLABLE WORKSPACE */}
@@ -430,14 +442,12 @@ export function App() {
         ================================================================ */}
         {activeTab === 'synth' && (
           <div className="flex flex-col gap-3">
-            {/* GRANULAR CLOUD SYNTHESIZER */}
+            {/* CORE SOUNDSCAPE TEXTURE & HIGH-IMPACT CONTROLS */}
             <div className="bg-[#161922] border border-[#252a38] rounded-lg p-3">
               <div className="flex justify-between items-center mb-2.5">
-                <div className="flex items-center gap-2">
-                  <span className="font-display-tech text-[11px] font-bold uppercase tracking-wider text-[#b886ff]">
-                    Procedural Granular Cloud Engine
-                  </span>
-                </div>
+                <span className="font-display-tech text-[11px] font-bold uppercase tracking-wider text-[#b886ff]">
+                  Granular & Texture Engine
+                </span>
                 <button
                   onClick={() => updateParam('granular', 'enabled', !params.granular.enabled)}
                   className={`px-2.5 py-0.5 rounded font-mono-tech text-[10px] font-bold border cursor-pointer ${
@@ -450,20 +460,23 @@ export function App() {
                 </button>
               </div>
 
-              {/* Grain Texture Selector */}
-              <div className="grid grid-cols-4 gap-1.5 mb-3">
+              {/* 7 Grain / Soundscape Textures */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5 mb-3">
                 {(
                   [
                     { id: 'metallic', label: 'METALLIC SCRAPE' },
                     { id: 'choir', label: 'SPECTRAL CHOIR' },
                     { id: 'subterranean', label: 'SUBTERRANEAN' },
-                    { id: 'glitch', label: 'FRACTAL GLITCH' }
+                    { id: 'glitch', label: 'FRACTAL GLITCH' },
+                    { id: 'tape', label: 'TAPE & TEST GEAR' },
+                    { id: 'hypnotic', label: 'HYPNOSIS DUB' },
+                    { id: 'liquid', label: 'LIQUID ALCHEMY' }
                   ] as { id: GrainTextureType; label: string }[]
                 ).map((tex) => (
                   <button
                     key={tex.id}
                     onClick={() => updateParam('granular', 'texture', tex.id)}
-                    className={`py-1.5 px-1 rounded font-mono-tech text-[9px] font-semibold border transition cursor-pointer ${
+                    className={`py-1.5 px-1.5 rounded font-mono-tech text-[9px] font-semibold border transition cursor-pointer ${
                       params.granular.texture === tex.id
                         ? 'bg-[#b886ff]/20 border-[#b886ff] text-[#b886ff]'
                         : 'bg-[#090b10] border-[#252a38] text-[#7f889f] hover:text-[#e2e6f0]'
@@ -475,118 +488,6 @@ export function App() {
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div className="flex flex-col gap-1">
-                  <div className="flex justify-between font-mono-tech text-[11px]">
-                    <span className="text-[#e2e6f0]">Grain Density (Spawn Rate)</span>
-                    <span className="text-[#38e2c7]">{params.granular.density.toFixed(1)} /s</span>
-                  </div>
-                  <input
-                    type="range"
-                    min={1}
-                    max={45}
-                    step={0.5}
-                    value={params.granular.density}
-                    onChange={(e) => updateParam('granular', 'density', parseFloat(e.target.value))}
-                    className="synth-slider cyan-slider"
-                  />
-                </div>
-
-                <div className="flex flex-col gap-1">
-                  <div className="flex justify-between font-mono-tech text-[11px]">
-                    <span className="text-[#e2e6f0]">Grain Window Size</span>
-                    <span className="text-[#38e2c7]">{Math.round(params.granular.size * 1000)} ms</span>
-                  </div>
-                  <input
-                    type="range"
-                    min={0.015}
-                    max={0.45}
-                    step={0.005}
-                    value={params.granular.size}
-                    onChange={(e) => updateParam('granular', 'size', parseFloat(e.target.value))}
-                    className="synth-slider cyan-slider"
-                  />
-                </div>
-
-                <div className="flex flex-col gap-1">
-                  <div className="flex justify-between font-mono-tech text-[11px]">
-                    <span className="text-[#e2e6f0]">Grain Pitch Ratio</span>
-                    <span className="text-[#38e2c7]">{params.granular.pitch.toFixed(2)}x</span>
-                  </div>
-                  <input
-                    type="range"
-                    min={0.25}
-                    max={3.0}
-                    step={0.01}
-                    value={params.granular.pitch}
-                    onChange={(e) => updateParam('granular', 'pitch', parseFloat(e.target.value))}
-                    className="synth-slider"
-                  />
-                </div>
-
-                <div className="flex flex-col gap-1">
-                  <div className="flex justify-between font-mono-tech text-[11px]">
-                    <span className="text-[#e2e6f0]">Microtonal Pitch Jitter</span>
-                    <span className="text-[#38e2c7]">{params.granular.pitchJitter.toFixed(2)}</span>
-                  </div>
-                  <input
-                    type="range"
-                    min={0}
-                    max={1}
-                    step={0.01}
-                    value={params.granular.pitchJitter}
-                    onChange={(e) => updateParam('granular', 'pitchJitter', parseFloat(e.target.value))}
-                    className="synth-slider"
-                  />
-                </div>
-
-                <div className="flex flex-col gap-1">
-                  <div className="flex justify-between font-mono-tech text-[11px]">
-                    <span className="text-[#e2e6f0]">Position Spray / Chaos</span>
-                    <span className="text-[#38e2c7]">{params.granular.spray.toFixed(2)}</span>
-                  </div>
-                  <input
-                    type="range"
-                    min={0}
-                    max={1}
-                    step={0.01}
-                    value={params.granular.spray}
-                    onChange={(e) => updateParam('granular', 'spray', parseFloat(e.target.value))}
-                    className="synth-slider"
-                  />
-                </div>
-
-                <div className="flex flex-col gap-1">
-                  <div className="flex justify-between font-mono-tech text-[11px]">
-                    <span className="text-[#e2e6f0]">Reverse Grain Probability</span>
-                    <span className="text-[#ff4d6d]">{Math.round(params.granular.reverseProb * 100)}%</span>
-                  </div>
-                  <input
-                    type="range"
-                    min={0}
-                    max={1}
-                    step={0.01}
-                    value={params.granular.reverseProb}
-                    onChange={(e) => updateParam('granular', 'reverseProb', parseFloat(e.target.value))}
-                    className="synth-slider danger-slider"
-                  />
-                </div>
-
-                <div className="flex flex-col gap-1">
-                  <div className="flex justify-between font-mono-tech text-[11px]">
-                    <span className="text-[#e2e6f0]">3D Stereo Grain Scatter</span>
-                    <span className="text-[#38e2c7]">{params.granular.spread.toFixed(2)}</span>
-                  </div>
-                  <input
-                    type="range"
-                    min={0}
-                    max={1}
-                    step={0.01}
-                    value={params.granular.spread}
-                    onChange={(e) => updateParam('granular', 'spread', parseFloat(e.target.value))}
-                    className="synth-slider"
-                  />
-                </div>
-
                 <div className="flex flex-col gap-1">
                   <div className="flex justify-between font-mono-tech text-[11px]">
                     <span className="text-[#e2e6f0]">Granular Cloud Level</span>
@@ -602,14 +503,30 @@ export function App() {
                     className="synth-slider cyan-slider"
                   />
                 </div>
+
+                <div className="flex flex-col gap-1">
+                  <div className="flex justify-between font-mono-tech text-[11px]">
+                    <span className="text-[#e2e6f0]">Grain Density (Spawn Rate)</span>
+                    <span className="text-[#38e2c7]">{params.granular.density.toFixed(1)} /s</span>
+                  </div>
+                  <input
+                    type="range"
+                    min={1}
+                    max={45}
+                    step={0.5}
+                    value={params.granular.density}
+                    onChange={(e) => updateParam('granular', 'density', parseFloat(e.target.value))}
+                    className="synth-slider cyan-slider"
+                  />
+                </div>
               </div>
             </div>
 
-            {/* DRONE OSCILLATORS, RING MOD & FM CORE */}
+            {/* PRIMARY TONE & FILTER MACRO CONTROLS */}
             <div className="bg-[#161922] border border-[#252a38] rounded-lg p-3">
               <div className="flex justify-between items-center mb-2.5">
                 <span className="font-display-tech text-[11px] font-bold uppercase tracking-wider text-[#7f889f]">
-                  Drone Oscillators, Cross-FM & Ring Modulator
+                  Primary Tone, Filter & FM Core
                 </span>
               </div>
 
@@ -632,60 +549,16 @@ export function App() {
 
                 <div className="flex flex-col gap-1">
                   <div className="flex justify-between font-mono-tech text-[11px]">
-                    <span className="text-[#e2e6f0]">Unison Detune Spread</span>
-                    <span className="text-[#38e2c7]">{params.synth.detuneSpread.toFixed(1)} ct</span>
+                    <span className="text-[#e2e6f0]">Drone Filter Cutoff</span>
+                    <span className="text-[#38e2c7]">{Math.round(params.filter.cutoff)} Hz</span>
                   </div>
                   <input
                     type="range"
-                    min={0}
-                    max={75}
-                    step={0.5}
-                    value={params.synth.detuneSpread}
-                    onChange={(e) => updateParam('synth', 'detuneSpread', parseFloat(e.target.value))}
-                    className="synth-slider"
-                  />
-                </div>
-
-                <div className="flex flex-col gap-1">
-                  <span className="font-mono-tech text-[11px] text-[#e2e6f0]">Osc 1 Waveform</span>
-                  <select
-                    value={params.synth.osc1Type}
-                    onChange={(e) => updateParam('synth', 'osc1Type', e.target.value as OscillatorWave)}
-                    className="bg-[#090b10] text-[#e2e6f0] border border-[#384157] rounded-md px-2.5 py-1.5 font-mono-tech text-[11px] outline-none"
-                  >
-                    <option value="sawtooth">Sawtooth</option>
-                    <option value="triangle">Triangle</option>
-                    <option value="sine">Sine</option>
-                    <option value="square">Square (Hollow)</option>
-                  </select>
-                </div>
-
-                <div className="flex flex-col gap-1">
-                  <span className="font-mono-tech text-[11px] text-[#e2e6f0]">Osc 2 Waveform</span>
-                  <select
-                    value={params.synth.osc2Type}
-                    onChange={(e) => updateParam('synth', 'osc2Type', e.target.value as OscillatorWave)}
-                    className="bg-[#090b10] text-[#e2e6f0] border border-[#384157] rounded-md px-2.5 py-1.5 font-mono-tech text-[11px] outline-none"
-                  >
-                    <option value="triangle">Triangle</option>
-                    <option value="sawtooth">Sawtooth</option>
-                    <option value="sine">Sine</option>
-                    <option value="square">Square</option>
-                  </select>
-                </div>
-
-                <div className="flex flex-col gap-1">
-                  <div className="flex justify-between font-mono-tech text-[11px]">
-                    <span className="text-[#e2e6f0]">Sub-Octave Abyss Level</span>
-                    <span className="text-[#38e2c7]">{params.synth.subLevel.toFixed(2)}</span>
-                  </div>
-                  <input
-                    type="range"
-                    min={0}
-                    max={1}
-                    step={0.01}
-                    value={params.synth.subLevel}
-                    onChange={(e) => updateParam('synth', 'subLevel', parseFloat(e.target.value))}
+                    min={40}
+                    max={3600}
+                    step={5}
+                    value={params.filter.cutoff}
+                    onChange={(e) => updateParam('filter', 'cutoff', parseFloat(e.target.value))}
                     className="synth-slider"
                   />
                 </div>
@@ -708,38 +581,6 @@ export function App() {
 
                 <div className="flex flex-col gap-1">
                   <div className="flex justify-between font-mono-tech text-[11px]">
-                    <span className="text-[#e2e6f0]">FM Inharmonic Ratio</span>
-                    <span className="text-[#38e2c7]">{params.synth.fmRatio.toFixed(2)}</span>
-                  </div>
-                  <input
-                    type="range"
-                    min={0.25}
-                    max={4.0}
-                    step={0.01}
-                    value={params.synth.fmRatio}
-                    onChange={(e) => updateParam('synth', 'fmRatio', parseFloat(e.target.value))}
-                    className="synth-slider"
-                  />
-                </div>
-
-                <div className="flex flex-col gap-1">
-                  <div className="flex justify-between font-mono-tech text-[11px]">
-                    <span className="text-[#e2e6f0]">Ring Modulator Freq</span>
-                    <span className="text-[#f59e0b]">{Math.round(params.synth.ringModFreq)} Hz</span>
-                  </div>
-                  <input
-                    type="range"
-                    min={15}
-                    max={600}
-                    step={1}
-                    value={params.synth.ringModFreq}
-                    onChange={(e) => updateParam('synth', 'ringModFreq', parseFloat(e.target.value))}
-                    className="synth-slider amber-slider"
-                  />
-                </div>
-
-                <div className="flex flex-col gap-1">
-                  <div className="flex justify-between font-mono-tech text-[11px]">
                     <span className="text-[#e2e6f0]">Ring Mod Metallic Mix</span>
                     <span className="text-[#f59e0b]">{params.synth.ringModMix.toFixed(2)}</span>
                   </div>
@@ -753,162 +594,356 @@ export function App() {
                     className="synth-slider amber-slider"
                   />
                 </div>
-
-                <div className="flex flex-col gap-1">
-                  <div className="flex justify-between font-mono-tech text-[11px]">
-                    <span className="text-[#e2e6f0]">Shepard Pitch Creep</span>
-                    <span className="text-[#ff4d6d]">{params.synth.pitchCreep.toFixed(2)}</span>
-                  </div>
-                  <input
-                    type="range"
-                    min={-0.8}
-                    max={0.8}
-                    step={0.02}
-                    value={params.synth.pitchCreep}
-                    onChange={(e) => updateParam('synth', 'pitchCreep', parseFloat(e.target.value))}
-                    className="synth-slider danger-slider"
-                  />
-                </div>
               </div>
             </div>
 
-            {/* RESONANT SPECTRAL, METALLIC COMB & VOCAL FORMANT FILTERS */}
-            <div className="bg-[#161922] border border-[#252a38] rounded-lg p-3">
-              <div className="flex justify-between items-center mb-2.5">
-                <span className="font-display-tech text-[11px] font-bold uppercase tracking-wider text-[#7f889f]">
-                  Spectral Filters, Metallic Comb & Uncanny Vocal Formants
-                </span>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div className="flex flex-col gap-1">
-                  <div className="flex justify-between font-mono-tech text-[11px]">
-                    <span className="text-[#e2e6f0]">Drone Filter Cutoff</span>
-                    <span className="text-[#38e2c7]">{Math.round(params.filter.cutoff)} Hz</span>
-                  </div>
-                  <input
-                    type="range"
-                    min={40}
-                    max={3600}
-                    step={5}
-                    value={params.filter.cutoff}
-                    onChange={(e) => updateParam('filter', 'cutoff', parseFloat(e.target.value))}
-                    className="synth-slider"
-                  />
+            {/* COLLAPSIBLE ADVANCED SYNTH, GRANULAR & SPECTRAL CONTROLS */}
+            <div className="bg-[#161922] border border-[#252a38] rounded-lg overflow-hidden">
+              <button
+                onClick={() => setShowAdvancedSynth((v) => !v)}
+                className="w-full px-3 py-2.5 flex items-center justify-between text-left hover:bg-[#1a1e29] transition cursor-pointer"
+              >
+                <div className="flex items-center gap-2">
+                  <SlidersHorizontal className="w-3.5 h-3.5 text-[#b886ff]" />
+                  <span className="font-display-tech text-[11px] font-bold uppercase tracking-wider text-[#e2e6f0]">
+                    Advanced Settings (Fine Synth, Grains & Formants)
+                  </span>
                 </div>
+                {showAdvancedSynth ? (
+                  <ChevronUp className="w-4 h-4 text-[#38e2c7]" />
+                ) : (
+                  <ChevronDown className="w-4 h-4 text-[#7f889f]" />
+                )}
+              </button>
 
-                <div className="flex flex-col gap-1">
-                  <div className="flex justify-between font-mono-tech text-[11px]">
-                    <span className="text-[#e2e6f0]">Drone Filter Resonance (Q)</span>
-                    <span className="text-[#38e2c7]">{params.filter.resonance.toFixed(1)}</span>
-                  </div>
-                  <input
-                    type="range"
-                    min={0.5}
-                    max={20}
-                    step={0.1}
-                    value={params.filter.resonance}
-                    onChange={(e) => updateParam('filter', 'resonance', parseFloat(e.target.value))}
-                    className="synth-slider"
-                  />
-                </div>
+              {showAdvancedSynth && (
+                <div className="p-3 pt-2 border-t border-[#252a38] flex flex-col gap-4">
+                  {/* Granular Fine Tuning */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div className="flex flex-col gap-1">
+                      <div className="flex justify-between font-mono-tech text-[11px]">
+                        <span className="text-[#e2e6f0]">Grain Window Size</span>
+                        <span className="text-[#38e2c7]">{Math.round(params.granular.size * 1000)} ms</span>
+                      </div>
+                      <input
+                        type="range"
+                        min={0.015}
+                        max={0.45}
+                        step={0.005}
+                        value={params.granular.size}
+                        onChange={(e) => updateParam('granular', 'size', parseFloat(e.target.value))}
+                        className="synth-slider cyan-slider"
+                      />
+                    </div>
 
-                <div className="flex flex-col gap-1">
-                  <div className="flex justify-between font-mono-tech text-[11px]">
-                    <span className="text-[#e2e6f0]">Metallic Comb Pitch</span>
-                    <span className="text-[#f59e0b]">{Math.round(params.filter.combFreq)} Hz</span>
-                  </div>
-                  <input
-                    type="range"
-                    min={30}
-                    max={650}
-                    step={1}
-                    value={params.filter.combFreq}
-                    onChange={(e) => updateParam('filter', 'combFreq', parseFloat(e.target.value))}
-                    className="synth-slider amber-slider"
-                  />
-                </div>
+                    <div className="flex flex-col gap-1">
+                      <div className="flex justify-between font-mono-tech text-[11px]">
+                        <span className="text-[#e2e6f0]">Grain Pitch Ratio</span>
+                        <span className="text-[#38e2c7]">{params.granular.pitch.toFixed(2)}x</span>
+                      </div>
+                      <input
+                        type="range"
+                        min={0.25}
+                        max={3.0}
+                        step={0.01}
+                        value={params.granular.pitch}
+                        onChange={(e) => updateParam('granular', 'pitch', parseFloat(e.target.value))}
+                        className="synth-slider"
+                      />
+                    </div>
 
-                <div className="flex flex-col gap-1">
-                  <div className="flex justify-between font-mono-tech text-[11px]">
-                    <span className="text-[#e2e6f0]">Comb Feedback Resonance</span>
-                    <span className="text-[#f59e0b]">{params.filter.combFeedback.toFixed(2)}</span>
-                  </div>
-                  <input
-                    type="range"
-                    min={0}
-                    max={0.92}
-                    step={0.01}
-                    value={params.filter.combFeedback}
-                    onChange={(e) => updateParam('filter', 'combFeedback', parseFloat(e.target.value))}
-                    className="synth-slider amber-slider"
-                  />
-                </div>
+                    <div className="flex flex-col gap-1">
+                      <div className="flex justify-between font-mono-tech text-[11px]">
+                        <span className="text-[#e2e6f0]">Microtonal Pitch Jitter</span>
+                        <span className="text-[#38e2c7]">{params.granular.pitchJitter.toFixed(2)}</span>
+                      </div>
+                      <input
+                        type="range"
+                        min={0}
+                        max={1}
+                        step={0.01}
+                        value={params.granular.pitchJitter}
+                        onChange={(e) => updateParam('granular', 'pitchJitter', parseFloat(e.target.value))}
+                        className="synth-slider"
+                      />
+                    </div>
 
-                <div className="flex flex-col gap-1">
-                  <div className="flex justify-between font-mono-tech text-[11px]">
-                    <span className="text-[#e2e6f0]">Comb Resonator Mix</span>
-                    <span className="text-[#f59e0b]">{params.filter.combMix.toFixed(2)}</span>
-                  </div>
-                  <input
-                    type="range"
-                    min={0}
-                    max={1}
-                    step={0.01}
-                    value={params.filter.combMix}
-                    onChange={(e) => updateParam('filter', 'combMix', parseFloat(e.target.value))}
-                    className="synth-slider amber-slider"
-                  />
-                </div>
+                    <div className="flex flex-col gap-1">
+                      <div className="flex justify-between font-mono-tech text-[11px]">
+                        <span className="text-[#e2e6f0]">Position Spray / Chaos</span>
+                        <span className="text-[#38e2c7]">{params.granular.spray.toFixed(2)}</span>
+                      </div>
+                      <input
+                        type="range"
+                        min={0}
+                        max={1}
+                        step={0.01}
+                        value={params.granular.spray}
+                        onChange={(e) => updateParam('granular', 'spray', parseFloat(e.target.value))}
+                        className="synth-slider"
+                      />
+                    </div>
 
-                <div className="flex flex-col gap-1">
-                  <div className="flex justify-between font-mono-tech text-[11px]">
-                    <span className="text-[#e2e6f0]">Vocal Formant Vowel Morph</span>
-                    <span className="text-[#ff4d6d]">{params.filter.formantMorph.toFixed(2)}</span>
-                  </div>
-                  <input
-                    type="range"
-                    min={0}
-                    max={1}
-                    step={0.01}
-                    value={params.filter.formantMorph}
-                    onChange={(e) => updateParam('filter', 'formantMorph', parseFloat(e.target.value))}
-                    className="synth-slider danger-slider"
-                  />
-                </div>
+                    <div className="flex flex-col gap-1">
+                      <div className="flex justify-between font-mono-tech text-[11px]">
+                        <span className="text-[#e2e6f0]">Reverse Grain Probability</span>
+                        <span className="text-[#ff4d6d]">{Math.round(params.granular.reverseProb * 100)}%</span>
+                      </div>
+                      <input
+                        type="range"
+                        min={0}
+                        max={1}
+                        step={0.01}
+                        value={params.granular.reverseProb}
+                        onChange={(e) => updateParam('granular', 'reverseProb', parseFloat(e.target.value))}
+                        className="synth-slider danger-slider"
+                      />
+                    </div>
 
-                <div className="flex flex-col gap-1">
-                  <div className="flex justify-between font-mono-tech text-[11px]">
-                    <span className="text-[#e2e6f0]">Vocal Cavity Whisper Mix</span>
-                    <span className="text-[#ff4d6d]">{params.filter.formantMix.toFixed(2)}</span>
+                    <div className="flex flex-col gap-1">
+                      <div className="flex justify-between font-mono-tech text-[11px]">
+                        <span className="text-[#e2e6f0]">3D Stereo Grain Scatter</span>
+                        <span className="text-[#38e2c7]">{params.granular.spread.toFixed(2)}</span>
+                      </div>
+                      <input
+                        type="range"
+                        min={0}
+                        max={1}
+                        step={0.01}
+                        value={params.granular.spread}
+                        onChange={(e) => updateParam('granular', 'spread', parseFloat(e.target.value))}
+                        className="synth-slider"
+                      />
+                    </div>
                   </div>
-                  <input
-                    type="range"
-                    min={0}
-                    max={1}
-                    step={0.01}
-                    value={params.filter.formantMix}
-                    onChange={(e) => updateParam('filter', 'formantMix', parseFloat(e.target.value))}
-                    className="synth-slider danger-slider"
-                  />
-                </div>
 
-                <div className="flex flex-col gap-1">
-                  <div className="flex justify-between font-mono-tech text-[11px]">
-                    <span className="text-[#e2e6f0]">Brown Noise Texture Level</span>
-                    <span className="text-[#38e2c7]">{params.synth.noiseLevel.toFixed(2)}</span>
+                  {/* Oscillators, Sub, Ring, Creep */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 border-t border-[#252a38]">
+                    <div className="flex flex-col gap-1">
+                      <span className="font-mono-tech text-[11px] text-[#e2e6f0]">Osc 1 Waveform</span>
+                      <select
+                        value={params.synth.osc1Type}
+                        onChange={(e) => updateParam('synth', 'osc1Type', e.target.value as OscillatorWave)}
+                        className="bg-[#090b10] text-[#e2e6f0] border border-[#384157] rounded-md px-2.5 py-1.5 font-mono-tech text-[11px] outline-none"
+                      >
+                        <option value="sawtooth">Sawtooth</option>
+                        <option value="triangle">Triangle</option>
+                        <option value="sine">Sine</option>
+                        <option value="square">Square (Hollow)</option>
+                      </select>
+                    </div>
+
+                    <div className="flex flex-col gap-1">
+                      <span className="font-mono-tech text-[11px] text-[#e2e6f0]">Osc 2 Waveform</span>
+                      <select
+                        value={params.synth.osc2Type}
+                        onChange={(e) => updateParam('synth', 'osc2Type', e.target.value as OscillatorWave)}
+                        className="bg-[#090b10] text-[#e2e6f0] border border-[#384157] rounded-md px-2.5 py-1.5 font-mono-tech text-[11px] outline-none"
+                      >
+                        <option value="triangle">Triangle</option>
+                        <option value="sawtooth">Sawtooth</option>
+                        <option value="sine">Sine</option>
+                        <option value="square">Square</option>
+                      </select>
+                    </div>
+
+                    <div className="flex flex-col gap-1">
+                      <div className="flex justify-between font-mono-tech text-[11px]">
+                        <span className="text-[#e2e6f0]">Unison Detune Spread</span>
+                        <span className="text-[#38e2c7]">{params.synth.detuneSpread.toFixed(1)} ct</span>
+                      </div>
+                      <input
+                        type="range"
+                        min={0}
+                        max={75}
+                        step={0.5}
+                        value={params.synth.detuneSpread}
+                        onChange={(e) => updateParam('synth', 'detuneSpread', parseFloat(e.target.value))}
+                        className="synth-slider"
+                      />
+                    </div>
+
+                    <div className="flex flex-col gap-1">
+                      <div className="flex justify-between font-mono-tech text-[11px]">
+                        <span className="text-[#e2e6f0]">Sub-Octave Abyss Level</span>
+                        <span className="text-[#38e2c7]">{params.synth.subLevel.toFixed(2)}</span>
+                      </div>
+                      <input
+                        type="range"
+                        min={0}
+                        max={1}
+                        step={0.01}
+                        value={params.synth.subLevel}
+                        onChange={(e) => updateParam('synth', 'subLevel', parseFloat(e.target.value))}
+                        className="synth-slider"
+                      />
+                    </div>
+
+                    <div className="flex flex-col gap-1">
+                      <div className="flex justify-between font-mono-tech text-[11px]">
+                        <span className="text-[#e2e6f0]">FM Inharmonic Ratio</span>
+                        <span className="text-[#38e2c7]">{params.synth.fmRatio.toFixed(2)}</span>
+                      </div>
+                      <input
+                        type="range"
+                        min={0.25}
+                        max={4.0}
+                        step={0.01}
+                        value={params.synth.fmRatio}
+                        onChange={(e) => updateParam('synth', 'fmRatio', parseFloat(e.target.value))}
+                        className="synth-slider"
+                      />
+                    </div>
+
+                    <div className="flex flex-col gap-1">
+                      <div className="flex justify-between font-mono-tech text-[11px]">
+                        <span className="text-[#e2e6f0]">Ring Modulator Freq</span>
+                        <span className="text-[#f59e0b]">{Math.round(params.synth.ringModFreq)} Hz</span>
+                      </div>
+                      <input
+                        type="range"
+                        min={15}
+                        max={600}
+                        step={1}
+                        value={params.synth.ringModFreq}
+                        onChange={(e) => updateParam('synth', 'ringModFreq', parseFloat(e.target.value))}
+                        className="synth-slider amber-slider"
+                      />
+                    </div>
+
+                    <div className="flex flex-col gap-1">
+                      <div className="flex justify-between font-mono-tech text-[11px]">
+                        <span className="text-[#e2e6f0]">Shepard Pitch Creep</span>
+                        <span className="text-[#ff4d6d]">{params.synth.pitchCreep.toFixed(2)}</span>
+                      </div>
+                      <input
+                        type="range"
+                        min={-0.8}
+                        max={0.8}
+                        step={0.02}
+                        value={params.synth.pitchCreep}
+                        onChange={(e) => updateParam('synth', 'pitchCreep', parseFloat(e.target.value))}
+                        className="synth-slider danger-slider"
+                      />
+                    </div>
+
+                    <div className="flex flex-col gap-1">
+                      <div className="flex justify-between font-mono-tech text-[11px]">
+                        <span className="text-[#e2e6f0]">Brown Noise Texture Level</span>
+                        <span className="text-[#38e2c7]">{params.synth.noiseLevel.toFixed(2)}</span>
+                      </div>
+                      <input
+                        type="range"
+                        min={0}
+                        max={0.9}
+                        step={0.01}
+                        value={params.synth.noiseLevel}
+                        onChange={(e) => updateParam('synth', 'noiseLevel', parseFloat(e.target.value))}
+                        className="synth-slider"
+                      />
+                    </div>
                   </div>
-                  <input
-                    type="range"
-                    min={0}
-                    max={0.9}
-                    step={0.01}
-                    value={params.synth.noiseLevel}
-                    onChange={(e) => updateParam('synth', 'noiseLevel', parseFloat(e.target.value))}
-                    className="synth-slider"
-                  />
+
+                  {/* Spectral Comb & Formant Filters */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 border-t border-[#252a38]">
+                    <div className="flex flex-col gap-1">
+                      <div className="flex justify-between font-mono-tech text-[11px]">
+                        <span className="text-[#e2e6f0]">Drone Filter Resonance (Q)</span>
+                        <span className="text-[#38e2c7]">{params.filter.resonance.toFixed(1)}</span>
+                      </div>
+                      <input
+                        type="range"
+                        min={0.5}
+                        max={14}
+                        step={0.1}
+                        value={params.filter.resonance}
+                        onChange={(e) => updateParam('filter', 'resonance', parseFloat(e.target.value))}
+                        className="synth-slider"
+                      />
+                    </div>
+
+                    <div className="flex flex-col gap-1">
+                      <div className="flex justify-between font-mono-tech text-[11px]">
+                        <span className="text-[#e2e6f0]">Metallic Comb Pitch</span>
+                        <span className="text-[#f59e0b]">{Math.round(params.filter.combFreq)} Hz</span>
+                      </div>
+                      <input
+                        type="range"
+                        min={30}
+                        max={650}
+                        step={1}
+                        value={params.filter.combFreq}
+                        onChange={(e) => updateParam('filter', 'combFreq', parseFloat(e.target.value))}
+                        className="synth-slider amber-slider"
+                      />
+                    </div>
+
+                    <div className="flex flex-col gap-1">
+                      <div className="flex justify-between font-mono-tech text-[11px]">
+                        <span className="text-[#e2e6f0]">Comb Feedback Resonance</span>
+                        <span className="text-[#f59e0b]">{params.filter.combFeedback.toFixed(2)}</span>
+                      </div>
+                      <input
+                        type="range"
+                        min={0}
+                        max={0.85}
+                        step={0.01}
+                        value={params.filter.combFeedback}
+                        onChange={(e) => updateParam('filter', 'combFeedback', parseFloat(e.target.value))}
+                        className="synth-slider amber-slider"
+                      />
+                    </div>
+
+                    <div className="flex flex-col gap-1">
+                      <div className="flex justify-between font-mono-tech text-[11px]">
+                        <span className="text-[#e2e6f0]">Comb Resonator Mix</span>
+                        <span className="text-[#f59e0b]">{params.filter.combMix.toFixed(2)}</span>
+                      </div>
+                      <input
+                        type="range"
+                        min={0}
+                        max={1}
+                        step={0.01}
+                        value={params.filter.combMix}
+                        onChange={(e) => updateParam('filter', 'combMix', parseFloat(e.target.value))}
+                        className="synth-slider amber-slider"
+                      />
+                    </div>
+
+                    <div className="flex flex-col gap-1">
+                      <div className="flex justify-between font-mono-tech text-[11px]">
+                        <span className="text-[#e2e6f0]">Vocal Formant Vowel Morph</span>
+                        <span className="text-[#ff4d6d]">{params.filter.formantMorph.toFixed(2)}</span>
+                      </div>
+                      <input
+                        type="range"
+                        min={0}
+                        max={1}
+                        step={0.01}
+                        value={params.filter.formantMorph}
+                        onChange={(e) => updateParam('filter', 'formantMorph', parseFloat(e.target.value))}
+                        className="synth-slider danger-slider"
+                      />
+                    </div>
+
+                    <div className="flex flex-col gap-1">
+                      <div className="flex justify-between font-mono-tech text-[11px]">
+                        <span className="text-[#e2e6f0]">Vocal Cavity Whisper Mix</span>
+                        <span className="text-[#ff4d6d]">{params.filter.formantMix.toFixed(2)}</span>
+                      </div>
+                      <input
+                        type="range"
+                        min={0}
+                        max={1}
+                        step={0.01}
+                        value={params.filter.formantMix}
+                        onChange={(e) => updateParam('filter', 'formantMix', parseFloat(e.target.value))}
+                        className="synth-slider danger-slider"
+                      />
+                    </div>
+                  </div>
                 </div>
-              </div>
+              )}
             </div>
           </div>
         )}
@@ -922,7 +957,7 @@ export function App() {
             <div className="bg-[#161922] border border-[#252a38] rounded-lg p-3">
               <div className="flex justify-between items-center mb-2.5">
                 <span className="font-display-tech text-[11px] font-bold uppercase tracking-wider text-[#b886ff]">
-                  3D HRTF Spatial Orbit & Binaural Psychoacoustics
+                  3D HRTF Spatial Orbit & Space
                 </span>
                 <span className="font-mono-tech text-[10px] text-[#38e2c7]">
                   HRTF 360° // DOPPLER ACTIVE
@@ -973,204 +1008,6 @@ export function App() {
 
                 <div className="flex flex-col gap-1">
                   <div className="flex justify-between font-mono-tech text-[11px]">
-                    <span className="text-[#e2e6f0]">Relativistic Doppler Shift</span>
-                    <span className="text-[#f59e0b]">{params.spatial.dopplerShift.toFixed(2)}</span>
-                  </div>
-                  <input
-                    type="range"
-                    min={0}
-                    max={1}
-                    step={0.01}
-                    value={params.spatial.dopplerShift}
-                    onChange={(e) => updateParam('spatial', 'dopplerShift', parseFloat(e.target.value))}
-                    className="synth-slider amber-slider"
-                  />
-                </div>
-
-                <div className="flex flex-col gap-1">
-                  <div className="flex justify-between font-mono-tech text-[11px]">
-                    <span className="text-[#e2e6f0]">Binaural Beat Freq Split (L/R)</span>
-                    <span className="text-[#b886ff]">{params.spatial.binauralDetune.toFixed(1)} Hz</span>
-                  </div>
-                  <input
-                    type="range"
-                    min={0}
-                    max={22}
-                    step={0.2}
-                    value={params.spatial.binauralDetune}
-                    onChange={(e) => updateParam('spatial', 'binauralDetune', parseFloat(e.target.value))}
-                    className="synth-slider"
-                  />
-                </div>
-
-                <div className="flex flex-col gap-1">
-                  <div className="flex justify-between font-mono-tech text-[11px]">
-                    <span className="text-[#e2e6f0]">3D Elevation Offset (Y-Axis)</span>
-                    <span className="text-[#38e2c7]">{params.spatial.elevation.toFixed(2)}</span>
-                  </div>
-                  <input
-                    type="range"
-                    min={-1}
-                    max={1}
-                    step={0.05}
-                    value={params.spatial.elevation}
-                    onChange={(e) => updateParam('spatial', 'elevation', parseFloat(e.target.value))}
-                    className="synth-slider"
-                  />
-                </div>
-
-                <div className="flex flex-col gap-1">
-                  <div className="flex justify-between font-mono-tech text-[11px]">
-                    <span className="text-[#e2e6f0]">Haas Psychoacoustic Width</span>
-                    <span className="text-[#38e2c7]">{(params.spatial.haasWidth * 1000).toFixed(1)} ms</span>
-                  </div>
-                  <input
-                    type="range"
-                    min={0}
-                    max={0.025}
-                    step={0.001}
-                    value={params.spatial.haasWidth}
-                    onChange={(e) => updateParam('spatial', 'haasWidth', parseFloat(e.target.value))}
-                    className="synth-slider"
-                  />
-                </div>
-              </div>
-            </div>
-
-            {/* AUTONOMOUS DRIFT & LFO ENGINE */}
-            <div className="bg-[#161922] border border-[#252a38] rounded-lg p-3">
-              <div className="flex justify-between items-center mb-2.5">
-                <span className="font-display-tech text-[11px] font-bold uppercase tracking-wider text-[#7f889f]">
-                  Autonomous Drift & LFO Modulation
-                </span>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div className="flex flex-col gap-1">
-                  <div className="flex justify-between font-mono-tech text-[11px]">
-                    <span className="text-[#e2e6f0]">LFO Sweep Rate</span>
-                    <span className="text-[#38e2c7]">{params.modulation.lfoRate.toFixed(2)} Hz</span>
-                  </div>
-                  <input
-                    type="range"
-                    min={0.02}
-                    max={2.5}
-                    step={0.01}
-                    value={params.modulation.lfoRate}
-                    onChange={(e) => updateParam('modulation', 'lfoRate', parseFloat(e.target.value))}
-                    className="synth-slider"
-                  />
-                </div>
-
-                <div className="flex flex-col gap-1">
-                  <div className="flex justify-between font-mono-tech text-[11px]">
-                    <span className="text-[#e2e6f0]">LFO Filter Depth</span>
-                    <span className="text-[#38e2c7]">{Math.round(params.modulation.lfoDepth)}</span>
-                  </div>
-                  <input
-                    type="range"
-                    min={0}
-                    max={900}
-                    step={5}
-                    value={params.modulation.lfoDepth}
-                    onChange={(e) => updateParam('modulation', 'lfoDepth', parseFloat(e.target.value))}
-                    className="synth-slider"
-                  />
-                </div>
-
-                <div className="flex flex-col gap-1">
-                  <div className="flex justify-between font-mono-tech text-[11px]">
-                    <span className="text-[#e2e6f0]">Stochastic Drift Rate</span>
-                    <span className="text-[#38e2c7]">{params.modulation.driftSpeed.toFixed(2)}</span>
-                  </div>
-                  <input
-                    type="range"
-                    min={0}
-                    max={1}
-                    step={0.01}
-                    value={params.modulation.driftSpeed}
-                    onChange={(e) => updateParam('modulation', 'driftSpeed', parseFloat(e.target.value))}
-                    className="synth-slider"
-                  />
-                </div>
-
-                <div className="flex flex-col gap-1">
-                  <div className="flex justify-between font-mono-tech text-[11px]">
-                    <span className="text-[#e2e6f0]">Stereo Pan Motion Width</span>
-                    <span className="text-[#38e2c7]">{params.modulation.stereoWidth.toFixed(2)}</span>
-                  </div>
-                  <input
-                    type="range"
-                    min={0}
-                    max={1}
-                    step={0.01}
-                    value={params.modulation.stereoWidth}
-                    onChange={(e) => updateParam('modulation', 'stereoWidth', parseFloat(e.target.value))}
-                    className="synth-slider"
-                  />
-                </div>
-              </div>
-            </div>
-
-            {/* ECHO NETWORK & DARK CAVERN REVERB */}
-            <div className="bg-[#161922] border border-[#252a38] rounded-lg p-3">
-              <div className="flex justify-between items-center mb-2.5">
-                <span className="font-display-tech text-[11px] font-bold uppercase tracking-wider text-[#7f889f]">
-                  Echo Network, Dark Cavern Reverb & Master Drive
-                </span>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div className="flex flex-col gap-1">
-                  <div className="flex justify-between font-mono-tech text-[11px]">
-                    <span className="text-[#e2e6f0]">Echo Delay Time</span>
-                    <span className="text-[#38e2c7]">{params.fx.delayTime.toFixed(2)} s</span>
-                  </div>
-                  <input
-                    type="range"
-                    min={0.08}
-                    max={0.95}
-                    step={0.01}
-                    value={params.fx.delayTime}
-                    onChange={(e) => updateParam('fx', 'delayTime', parseFloat(e.target.value))}
-                    className="synth-slider"
-                  />
-                </div>
-
-                <div className="flex flex-col gap-1">
-                  <div className="flex justify-between font-mono-tech text-[11px]">
-                    <span className="text-[#e2e6f0]">Echo Feedback</span>
-                    <span className="text-[#38e2c7]">{params.fx.delayFeedback.toFixed(2)}</span>
-                  </div>
-                  <input
-                    type="range"
-                    min={0}
-                    max={0.88}
-                    step={0.01}
-                    value={params.fx.delayFeedback}
-                    onChange={(e) => updateParam('fx', 'delayFeedback', parseFloat(e.target.value))}
-                    className="synth-slider"
-                  />
-                </div>
-
-                <div className="flex flex-col gap-1">
-                  <div className="flex justify-between font-mono-tech text-[11px]">
-                    <span className="text-[#e2e6f0]">Echo Wet Mix</span>
-                    <span className="text-[#38e2c7]">{params.fx.delayMix.toFixed(2)}</span>
-                  </div>
-                  <input
-                    type="range"
-                    min={0}
-                    max={0.85}
-                    step={0.01}
-                    value={params.fx.delayMix}
-                    onChange={(e) => updateParam('fx', 'delayMix', parseFloat(e.target.value))}
-                    className="synth-slider"
-                  />
-                </div>
-
-                <div className="flex flex-col gap-1">
-                  <div className="flex justify-between font-mono-tech text-[11px]">
                     <span className="text-[#e2e6f0]">Cavern Convolver Reverb</span>
                     <span className="text-[#38e2c7]">{params.fx.reverbMix.toFixed(2)}</span>
                   </div>
@@ -1182,22 +1019,6 @@ export function App() {
                     value={params.fx.reverbMix}
                     onChange={(e) => updateParam('fx', 'reverbMix', parseFloat(e.target.value))}
                     className="synth-slider"
-                  />
-                </div>
-
-                <div className="flex flex-col gap-1">
-                  <div className="flex justify-between font-mono-tech text-[11px]">
-                    <span className="text-[#e2e6f0]">Analog Waveshaper Drive</span>
-                    <span className="text-[#f59e0b]">{params.fx.drive.toFixed(2)}</span>
-                  </div>
-                  <input
-                    type="range"
-                    min={0}
-                    max={1}
-                    step={0.01}
-                    value={params.fx.drive}
-                    onChange={(e) => updateParam('fx', 'drive', parseFloat(e.target.value))}
-                    className="synth-slider amber-slider"
                   />
                 </div>
 
@@ -1221,6 +1042,231 @@ export function App() {
                   />
                 </div>
               </div>
+            </div>
+
+            {/* COLLAPSIBLE ADVANCED 3D, LFO & ECHO CONTROLS */}
+            <div className="bg-[#161922] border border-[#252a38] rounded-lg overflow-hidden">
+              <button
+                onClick={() => setShowAdvancedMod((v) => !v)}
+                className="w-full px-3 py-2.5 flex items-center justify-between text-left hover:bg-[#1a1e29] transition cursor-pointer"
+              >
+                <div className="flex items-center gap-2">
+                  <SlidersHorizontal className="w-3.5 h-3.5 text-[#38e2c7]" />
+                  <span className="font-display-tech text-[11px] font-bold uppercase tracking-wider text-[#e2e6f0]">
+                    Advanced Settings (Binaural, LFO Drift & Echo Network)
+                  </span>
+                </div>
+                {showAdvancedMod ? (
+                  <ChevronUp className="w-4 h-4 text-[#38e2c7]" />
+                ) : (
+                  <ChevronDown className="w-4 h-4 text-[#7f889f]" />
+                )}
+              </button>
+
+              {showAdvancedMod && (
+                <div className="p-3 pt-2 border-t border-[#252a38] flex flex-col gap-4">
+                  {/* Spatial Psychoacoustics */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div className="flex flex-col gap-1">
+                      <div className="flex justify-between font-mono-tech text-[11px]">
+                        <span className="text-[#e2e6f0]">Relativistic Doppler Shift</span>
+                        <span className="text-[#f59e0b]">{params.spatial.dopplerShift.toFixed(2)}</span>
+                      </div>
+                      <input
+                        type="range"
+                        min={0}
+                        max={1}
+                        step={0.01}
+                        value={params.spatial.dopplerShift}
+                        onChange={(e) => updateParam('spatial', 'dopplerShift', parseFloat(e.target.value))}
+                        className="synth-slider amber-slider"
+                      />
+                    </div>
+
+                    <div className="flex flex-col gap-1">
+                      <div className="flex justify-between font-mono-tech text-[11px]">
+                        <span className="text-[#e2e6f0]">Binaural Beat Freq Split (L/R)</span>
+                        <span className="text-[#b886ff]">{params.spatial.binauralDetune.toFixed(1)} Hz</span>
+                      </div>
+                      <input
+                        type="range"
+                        min={0}
+                        max={22}
+                        step={0.2}
+                        value={params.spatial.binauralDetune}
+                        onChange={(e) => updateParam('spatial', 'binauralDetune', parseFloat(e.target.value))}
+                        className="synth-slider"
+                      />
+                    </div>
+
+                    <div className="flex flex-col gap-1">
+                      <div className="flex justify-between font-mono-tech text-[11px]">
+                        <span className="text-[#e2e6f0]">3D Elevation Offset (Y-Axis)</span>
+                        <span className="text-[#38e2c7]">{params.spatial.elevation.toFixed(2)}</span>
+                      </div>
+                      <input
+                        type="range"
+                        min={-1}
+                        max={1}
+                        step={0.05}
+                        value={params.spatial.elevation}
+                        onChange={(e) => updateParam('spatial', 'elevation', parseFloat(e.target.value))}
+                        className="synth-slider"
+                      />
+                    </div>
+
+                    <div className="flex flex-col gap-1">
+                      <div className="flex justify-between font-mono-tech text-[11px]">
+                        <span className="text-[#e2e6f0]">Haas Psychoacoustic Width</span>
+                        <span className="text-[#38e2c7]">{(params.spatial.haasWidth * 1000).toFixed(1)} ms</span>
+                      </div>
+                      <input
+                        type="range"
+                        min={0}
+                        max={0.025}
+                        step={0.001}
+                        value={params.spatial.haasWidth}
+                        onChange={(e) => updateParam('spatial', 'haasWidth', parseFloat(e.target.value))}
+                        className="synth-slider"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Autonomous Drift & LFO */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 border-t border-[#252a38]">
+                    <div className="flex flex-col gap-1">
+                      <div className="flex justify-between font-mono-tech text-[11px]">
+                        <span className="text-[#e2e6f0]">LFO Sweep Rate</span>
+                        <span className="text-[#38e2c7]">{params.modulation.lfoRate.toFixed(2)} Hz</span>
+                      </div>
+                      <input
+                        type="range"
+                        min={0.02}
+                        max={2.5}
+                        step={0.01}
+                        value={params.modulation.lfoRate}
+                        onChange={(e) => updateParam('modulation', 'lfoRate', parseFloat(e.target.value))}
+                        className="synth-slider"
+                      />
+                    </div>
+
+                    <div className="flex flex-col gap-1">
+                      <div className="flex justify-between font-mono-tech text-[11px]">
+                        <span className="text-[#e2e6f0]">LFO Filter Depth</span>
+                        <span className="text-[#38e2c7]">{Math.round(params.modulation.lfoDepth)}</span>
+                      </div>
+                      <input
+                        type="range"
+                        min={0}
+                        max={900}
+                        step={5}
+                        value={params.modulation.lfoDepth}
+                        onChange={(e) => updateParam('modulation', 'lfoDepth', parseFloat(e.target.value))}
+                        className="synth-slider"
+                      />
+                    </div>
+
+                    <div className="flex flex-col gap-1">
+                      <div className="flex justify-between font-mono-tech text-[11px]">
+                        <span className="text-[#e2e6f0]">Stochastic Drift Rate</span>
+                        <span className="text-[#38e2c7]">{params.modulation.driftSpeed.toFixed(2)}</span>
+                      </div>
+                      <input
+                        type="range"
+                        min={0}
+                        max={1}
+                        step={0.01}
+                        value={params.modulation.driftSpeed}
+                        onChange={(e) => updateParam('modulation', 'driftSpeed', parseFloat(e.target.value))}
+                        className="synth-slider"
+                      />
+                    </div>
+
+                    <div className="flex flex-col gap-1">
+                      <div className="flex justify-between font-mono-tech text-[11px]">
+                        <span className="text-[#e2e6f0]">Stereo Pan Motion Width</span>
+                        <span className="text-[#38e2c7]">{params.modulation.stereoWidth.toFixed(2)}</span>
+                      </div>
+                      <input
+                        type="range"
+                        min={0}
+                        max={1}
+                        step={0.01}
+                        value={params.modulation.stereoWidth}
+                        onChange={(e) => updateParam('modulation', 'stereoWidth', parseFloat(e.target.value))}
+                        className="synth-slider"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Echo Delay & Analog Drive */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 border-t border-[#252a38]">
+                    <div className="flex flex-col gap-1">
+                      <div className="flex justify-between font-mono-tech text-[11px]">
+                        <span className="text-[#e2e6f0]">Echo Delay Time</span>
+                        <span className="text-[#38e2c7]">{params.fx.delayTime.toFixed(2)} s</span>
+                      </div>
+                      <input
+                        type="range"
+                        min={0.08}
+                        max={0.95}
+                        step={0.01}
+                        value={params.fx.delayTime}
+                        onChange={(e) => updateParam('fx', 'delayTime', parseFloat(e.target.value))}
+                        className="synth-slider"
+                      />
+                    </div>
+
+                    <div className="flex flex-col gap-1">
+                      <div className="flex justify-between font-mono-tech text-[11px]">
+                        <span className="text-[#e2e6f0]">Echo Feedback</span>
+                        <span className="text-[#38e2c7]">{params.fx.delayFeedback.toFixed(2)}</span>
+                      </div>
+                      <input
+                        type="range"
+                        min={0}
+                        max={0.85}
+                        step={0.01}
+                        value={params.fx.delayFeedback}
+                        onChange={(e) => updateParam('fx', 'delayFeedback', parseFloat(e.target.value))}
+                        className="synth-slider"
+                      />
+                    </div>
+
+                    <div className="flex flex-col gap-1">
+                      <div className="flex justify-between font-mono-tech text-[11px]">
+                        <span className="text-[#e2e6f0]">Echo Wet Mix</span>
+                        <span className="text-[#38e2c7]">{params.fx.delayMix.toFixed(2)}</span>
+                      </div>
+                      <input
+                        type="range"
+                        min={0}
+                        max={0.85}
+                        step={0.01}
+                        value={params.fx.delayMix}
+                        onChange={(e) => updateParam('fx', 'delayMix', parseFloat(e.target.value))}
+                        className="synth-slider"
+                      />
+                    </div>
+
+                    <div className="flex flex-col gap-1">
+                      <div className="flex justify-between font-mono-tech text-[11px]">
+                        <span className="text-[#e2e6f0]">Analog Waveshaper Drive</span>
+                        <span className="text-[#f59e0b]">{params.fx.drive.toFixed(2)}</span>
+                      </div>
+                      <input
+                        type="range"
+                        min={0}
+                        max={1}
+                        step={0.01}
+                        value={params.fx.drive}
+                        onChange={(e) => updateParam('fx', 'drive', parseFloat(e.target.value))}
+                        className="synth-slider amber-slider"
+                      />
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         )}
@@ -1253,6 +1299,9 @@ export function App() {
                       { id: 'void', label: 'VOID' },
                       { id: 'psychedelic', label: 'PSYCHEDELIC' },
                       { id: 'horror', label: 'HORROR' },
+                      { id: 'tape', label: 'TAPE/NOISE' },
+                      { id: 'hypnotic', label: 'HYPNOTIC' },
+                      { id: 'liquid', label: 'LIQUID' },
                       { id: 'custom', label: 'SAVED' }
                     ] as { id: PresetCategory | 'all'; label: string }[]
                   ).map((cat) => (
@@ -1300,6 +1349,12 @@ export function App() {
                       ? 'text-[#b886ff] border-[#b886ff]/40 bg-[#b886ff]/10'
                       : preset.category === 'void'
                       ? 'text-[#38e2c7] border-[#38e2c7]/40 bg-[#38e2c7]/10'
+                      : preset.category === 'tape'
+                      ? 'text-[#eab308] border-[#eab308]/40 bg-[#eab308]/10'
+                      : preset.category === 'hypnotic'
+                      ? 'text-[#60a5fa] border-[#60a5fa]/40 bg-[#60a5fa]/10'
+                      : preset.category === 'liquid'
+                      ? 'text-[#34d399] border-[#34d399]/40 bg-[#34d399]/10'
                       : preset.category === 'custom'
                       ? 'text-[#f59e0b] border-[#f59e0b]/40 bg-[#f59e0b]/10'
                       : 'text-[#9ca3af] border-[#384157] bg-[#101218]';

@@ -476,45 +476,45 @@ export const FACTORY_PRESETS: EchoPreset[] = [
       fmDepth: 85.0,
       noiseLevel: 0.28,
       ringModFreq: 116.5,
-      ringModMix: 0.62,
-      pitchCreep: 0.38
+      ringModMix: 0.56,
+      pitchCreep: 0.22
     },
     filter: {
-      cutoff: 780.0,
-      resonance: 11.5,
+      cutoff: 720.0,
+      resonance: 8.8,
       noiseCutoff: 1450.0,
-      noiseQ: 10.5,
-      combFreq: 233.0,
-      combFeedback: 0.85,
-      combMix: 0.55,
+      noiseQ: 9.2,
+      combFreq: 210.0,
+      combFeedback: 0.72,
+      combMix: 0.45,
       formantMorph: 0.6,
-      formantMix: 0.52
+      formantMix: 0.48
     },
     granular: {
       enabled: true,
       texture: 'choir',
-      density: 24.0,
+      density: 22.0,
       size: 0.16,
-      spray: 0.7,
-      pitch: 1.35,
-      pitchJitter: 0.55,
-      spread: 0.95,
-      reverseProb: 0.8,
-      mix: 0.6
+      spray: 0.65,
+      pitch: 1.25,
+      pitchJitter: 0.42,
+      spread: 0.92,
+      reverseProb: 0.75,
+      mix: 0.58
     },
     spatial: {
       orbitShape: 'figure8',
-      orbitSpeed: 0.65,
-      orbitRadius: 1.8,
+      orbitSpeed: 0.58,
+      orbitRadius: 2.0,
       elevation: 0.35,
-      dopplerShift: 0.65,
-      binauralDetune: 10.5,
-      haasWidth: 0.02,
+      dopplerShift: 0.55,
+      binauralDetune: 9.5,
+      haasWidth: 0.018,
       manualX: 0,
       manualZ: -0.5
     },
-    modulation: { lfoRate: 0.42, lfoDepth: 520, driftSpeed: 0.8, stereoWidth: 1.0 },
-    fx: { delayTime: 0.38, delayFeedback: 0.76, delayMix: 0.52, reverbMix: 0.65, drive: 0.35 }
+    modulation: { lfoRate: 0.38, lfoDepth: 340, driftSpeed: 0.68, stereoWidth: 0.95 },
+    fx: { delayTime: 0.38, delayFeedback: 0.72, delayMix: 0.5, reverbMix: 0.65, drive: 0.3 }
   },
   {
     name: 'Mycelial Nightmare',
@@ -911,6 +911,354 @@ export const FACTORY_PRESETS: EchoPreset[] = [
     },
     modulation: { lfoRate: 0.06, lfoDepth: 190, driftSpeed: 0.75, stereoWidth: 0.95 },
     fx: { delayTime: 0.55, delayFeedback: 0.74, delayMix: 0.42, reverbMix: 0.82, drive: 0.38 }
+  },
+
+  // ==========================================================================
+  // CATEGORY 5: TAPE & TEST GEAR (HAINBACH NOISES INSPIRED)
+  // ==========================================================================
+  {
+    name: 'Hainbach Tape Loops',
+    category: 'tape',
+    description: 'Decaying magnetic reel-to-reel test tones, analog wow/flutter & dusty vinyl pops.',
+    version: '2.0',
+    seed: 'hainbach-tape-72',
+    synth: {
+      baseFreq: 65.4,
+      osc1Type: 'sine',
+      osc2Type: 'triangle',
+      detuneSpread: 11.5,
+      subLevel: 0.35,
+      fmRatio: 1.5,
+      fmDepth: 12.0,
+      noiseLevel: 0.42,
+      ringModFreq: 65.4,
+      ringModMix: 0.08,
+      pitchCreep: 0.0
+    },
+    filter: {
+      cutoff: 920.0,
+      resonance: 3.2,
+      noiseCutoff: 1350.0,
+      noiseQ: 2.8,
+      combFreq: 130.8,
+      combFeedback: 0.38,
+      combMix: 0.14,
+      formantMorph: 0.35,
+      formantMix: 0.18
+    },
+    granular: {
+      enabled: true,
+      texture: 'tape',
+      density: 11.0,
+      size: 0.28,
+      spray: 0.48,
+      pitch: 0.98,
+      pitchJitter: 0.09,
+      spread: 0.72,
+      reverseProb: 0.35,
+      mix: 0.78
+    },
+    spatial: {
+      orbitShape: 'pendulum',
+      orbitSpeed: 0.14,
+      orbitRadius: 2.6,
+      elevation: 0.05,
+      dopplerShift: 0.18,
+      binauralDetune: 1.8,
+      haasWidth: 0.012,
+      manualX: 0,
+      manualZ: -0.5
+    },
+    modulation: { lfoRate: 0.19, lfoDepth: 180, driftSpeed: 0.55, stereoWidth: 0.7 },
+    fx: { delayTime: 0.52, delayFeedback: 0.58, delayMix: 0.44, reverbMix: 0.58, drive: 0.42 }
+  },
+  {
+    name: 'Shortwave Test Bench',
+    category: 'tape',
+    description: 'Vintage laboratory radio static, heterodyne sweeps & mechanical relay clicks.',
+    version: '2.0',
+    seed: 'shortwave-1968',
+    synth: {
+      baseFreq: 49.0,
+      osc1Type: 'triangle',
+      osc2Type: 'sine',
+      detuneSpread: 18.0,
+      subLevel: 0.25,
+      fmRatio: 2.71,
+      fmDepth: 26.0,
+      noiseLevel: 0.58,
+      ringModFreq: 196.0,
+      ringModMix: 0.24,
+      pitchCreep: 0.05
+    },
+    filter: {
+      cutoff: 1280.0,
+      resonance: 5.8,
+      noiseCutoff: 1950.0,
+      noiseQ: 6.2,
+      combFreq: 196.0,
+      combFeedback: 0.48,
+      combMix: 0.22,
+      formantMorph: 0.52,
+      formantMix: 0.25
+    },
+    granular: {
+      enabled: true,
+      texture: 'tape',
+      density: 18.0,
+      size: 0.16,
+      spray: 0.78,
+      pitch: 1.12,
+      pitchJitter: 0.22,
+      spread: 0.85,
+      reverseProb: 0.45,
+      mix: 0.82
+    },
+    spatial: {
+      orbitShape: 'figure8',
+      orbitSpeed: 0.25,
+      orbitRadius: 3.0,
+      elevation: 0.2,
+      dopplerShift: 0.3,
+      binauralDetune: 2.4,
+      haasWidth: 0.015,
+      manualX: 0,
+      manualZ: -0.5
+    },
+    modulation: { lfoRate: 0.27, lfoDepth: 280, driftSpeed: 0.7, stereoWidth: 0.8 },
+    fx: { delayTime: 0.36, delayFeedback: 0.62, delayMix: 0.48, reverbMix: 0.52, drive: 0.48 }
+  },
+
+  // ==========================================================================
+  // CATEGORY 6: HYPNOTIC DUB (HYPNUS SLINK INSPIRED)
+  // ==========================================================================
+  {
+    name: 'Hypnus Cavern Slink',
+    category: 'hypnotic',
+    description: 'Deep Nordic dub-techno chord grains, cavernous sub-bass & hypnotic delay trails.',
+    version: '2.0',
+    seed: 'hypnus-slink-01',
+    synth: {
+      baseFreq: 46.25,
+      osc1Type: 'sine',
+      osc2Type: 'triangle',
+      detuneSpread: 8.0,
+      subLevel: 0.82,
+      fmRatio: 1.0,
+      fmDepth: 14.0,
+      noiseLevel: 0.16,
+      ringModFreq: 92.5,
+      ringModMix: 0.05,
+      pitchCreep: 0.0
+    },
+    filter: {
+      cutoff: 290.0,
+      resonance: 6.4,
+      noiseCutoff: 480.0,
+      noiseQ: 3.5,
+      combFreq: 92.5,
+      combFeedback: 0.44,
+      combMix: 0.18,
+      formantMorph: 0.2,
+      formantMix: 0.15
+    },
+    granular: {
+      enabled: true,
+      texture: 'hypnotic',
+      density: 8.0,
+      size: 0.34,
+      spray: 0.28,
+      pitch: 1.0,
+      pitchJitter: 0.04,
+      spread: 0.82,
+      reverseProb: 0.18,
+      mix: 0.84
+    },
+    spatial: {
+      orbitShape: 'circle',
+      orbitSpeed: 0.16,
+      orbitRadius: 4.2,
+      elevation: 0.15,
+      dopplerShift: 0.2,
+      binauralDetune: 1.5,
+      haasWidth: 0.016,
+      manualX: 0,
+      manualZ: -0.5
+    },
+    modulation: { lfoRate: 0.18, lfoDepth: 190, driftSpeed: 0.25, stereoWidth: 0.88 },
+    fx: { delayTime: 0.45, delayFeedback: 0.72, delayMix: 0.56, reverbMix: 0.74, drive: 0.18 }
+  },
+  {
+    name: 'Subterranean Modular Dub',
+    category: 'hypnotic',
+    description: 'Tunneling hypnotic sub-pulses with breathing resonant chords & deep stereo wash.',
+    version: '2.0',
+    seed: 'hypnus-tunnel-99',
+    synth: {
+      baseFreq: 51.9,
+      osc1Type: 'triangle',
+      osc2Type: 'sawtooth',
+      detuneSpread: 12.0,
+      subLevel: 0.78,
+      fmRatio: 2.0,
+      fmDepth: 22.0,
+      noiseLevel: 0.22,
+      ringModFreq: 103.8,
+      ringModMix: 0.1,
+      pitchCreep: 0.0
+    },
+    filter: {
+      cutoff: 410.0,
+      resonance: 8.2,
+      noiseCutoff: 640.0,
+      noiseQ: 4.5,
+      combFreq: 103.8,
+      combFeedback: 0.52,
+      combMix: 0.24,
+      formantMorph: 0.35,
+      formantMix: 0.22
+    },
+    granular: {
+      enabled: true,
+      texture: 'hypnotic',
+      density: 12.0,
+      size: 0.24,
+      spray: 0.35,
+      pitch: 0.75,
+      pitchJitter: 0.08,
+      spread: 0.9,
+      reverseProb: 0.28,
+      mix: 0.8
+    },
+    spatial: {
+      orbitShape: 'spiral',
+      orbitSpeed: 0.24,
+      orbitRadius: 3.6,
+      elevation: 0.25,
+      dopplerShift: 0.3,
+      binauralDetune: 2.5,
+      haasWidth: 0.019,
+      manualX: 0,
+      manualZ: -0.5
+    },
+    modulation: { lfoRate: 0.32, lfoDepth: 260, driftSpeed: 0.38, stereoWidth: 0.92 },
+    fx: { delayTime: 0.375, delayFeedback: 0.75, delayMix: 0.6, reverbMix: 0.78, drive: 0.24 }
+  },
+
+  // ==========================================================================
+  // CATEGORY 7: LIQUID ALCHEMY (G-SONIQUE PSYTRANCE INSPIRED)
+  // ==========================================================================
+  {
+    name: 'Organic Liquid Alchemy',
+    category: 'liquid',
+    description: 'Bubbling FM acid droplets, high-Q bandpass squelches & psychedelic stereo chirps.',
+    version: '2.0',
+    seed: 'liquid-alchemy-303',
+    synth: {
+      baseFreq: 55.0,
+      osc1Type: 'sawtooth',
+      osc2Type: 'sine',
+      detuneSpread: 16.0,
+      subLevel: 0.45,
+      fmRatio: 2.41,
+      fmDepth: 92.0,
+      noiseLevel: 0.14,
+      ringModFreq: 220.0,
+      ringModMix: 0.28,
+      pitchCreep: 0.08
+    },
+    filter: {
+      cutoff: 640.0,
+      resonance: 12.2,
+      noiseCutoff: 1400.0,
+      noiseQ: 8.0,
+      combFreq: 165.0,
+      combFeedback: 0.56,
+      combMix: 0.28,
+      formantMorph: 0.72,
+      formantMix: 0.42
+    },
+    granular: {
+      enabled: true,
+      texture: 'liquid',
+      density: 22.0,
+      size: 0.09,
+      spray: 0.62,
+      pitch: 1.15,
+      pitchJitter: 0.45,
+      spread: 0.95,
+      reverseProb: 0.42,
+      mix: 0.85
+    },
+    spatial: {
+      orbitShape: 'figure8',
+      orbitSpeed: 0.72,
+      orbitRadius: 2.4,
+      elevation: 0.3,
+      dopplerShift: 0.48,
+      binauralDetune: 4.5,
+      haasWidth: 0.014,
+      manualX: 0,
+      manualZ: -0.5
+    },
+    modulation: { lfoRate: 0.95, lfoDepth: 420, driftSpeed: 0.65, stereoWidth: 0.95 },
+    fx: { delayTime: 0.28, delayFeedback: 0.66, delayMix: 0.52, reverbMix: 0.54, drive: 0.28 }
+  },
+  {
+    name: 'Psycore Acid Drip',
+    category: 'liquid',
+    description: 'Hyper-resonant darkpsy modular bubbles, rapid FM water zaps & reverse droplets.',
+    version: '2.0',
+    seed: 'psycore-drip-77',
+    synth: {
+      baseFreq: 61.7,
+      osc1Type: 'square',
+      osc2Type: 'sawtooth',
+      detuneSpread: 22.0,
+      subLevel: 0.5,
+      fmRatio: 3.14,
+      fmDepth: 118.0,
+      noiseLevel: 0.18,
+      ringModFreq: 310.0,
+      ringModMix: 0.36,
+      pitchCreep: 0.12
+    },
+    filter: {
+      cutoff: 820.0,
+      resonance: 13.0,
+      noiseCutoff: 1850.0,
+      noiseQ: 9.5,
+      combFreq: 246.8,
+      combFeedback: 0.62,
+      combMix: 0.34,
+      formantMorph: 0.85,
+      formantMix: 0.48
+    },
+    granular: {
+      enabled: true,
+      texture: 'liquid',
+      density: 28.0,
+      size: 0.07,
+      spray: 0.75,
+      pitch: 1.4,
+      pitchJitter: 0.58,
+      spread: 1.0,
+      reverseProb: 0.55,
+      mix: 0.88
+    },
+    spatial: {
+      orbitShape: 'spiral',
+      orbitSpeed: 1.05,
+      orbitRadius: 2.1,
+      elevation: 0.45,
+      dopplerShift: 0.6,
+      binauralDetune: 6.2,
+      haasWidth: 0.017,
+      manualX: 0,
+      manualZ: -0.5
+    },
+    modulation: { lfoRate: 1.45, lfoDepth: 480, driftSpeed: 0.8, stereoWidth: 1.0 },
+    fx: { delayTime: 0.22, delayFeedback: 0.7, delayMix: 0.54, reverbMix: 0.48, drive: 0.34 }
   }
 ];
 
@@ -967,6 +1315,12 @@ export const SCALES: ScaleDefinition[] = [
     name: 'Quarter-Tone Uncanny (24-TET)',
     description: 'Microtonal cluster scale with eerie 50-cent quarter-tone bends.',
     semitones: [0, 0.5, 1.5, 3, 3.5, 5.5, 6, 6.5, 8, 9.5, 10.5, 11.5]
+  },
+  {
+    id: 'minor_dub',
+    name: 'Nordic Minor 9th (Dub)',
+    description: 'Deep hypnotic minor-9th chord voicing suited for dub-techno & modular pulses.',
+    semitones: [0, 2, 3, 5, 7, 10, 12, 14, 15, 17, 19, 22]
   }
 ];
 
@@ -1107,6 +1461,78 @@ export const SEQUENCER_PATTERNS: SequencerPattern[] = [
       { active: true, noteIndex: 4, velocity: 0.7 },
       { active: false, noteIndex: 0, velocity: 0.5 },
       { active: true, noteIndex: 6, velocity: 0.85 }
+    ]
+  },
+  {
+    id: 'hypnus_slink_dub',
+    name: 'Hypnus Slink Dub',
+    scaleId: 'minor_dub',
+    bpm: 124,
+    steps: [
+      { active: true, noteIndex: 0, velocity: 0.95 },
+      { active: false, noteIndex: 0, velocity: 0.5 },
+      { active: false, noteIndex: 0, velocity: 0.5 },
+      { active: true, noteIndex: 2, velocity: 0.72 },
+      { active: false, noteIndex: 0, velocity: 0.5 },
+      { active: false, noteIndex: 0, velocity: 0.5 },
+      { active: true, noteIndex: 5, velocity: 0.85 },
+      { active: false, noteIndex: 0, velocity: 0.5 },
+      { active: true, noteIndex: 0, velocity: 0.92 },
+      { active: false, noteIndex: 0, velocity: 0.5 },
+      { active: true, noteIndex: 4, velocity: 0.68 },
+      { active: false, noteIndex: 0, velocity: 0.5 },
+      { active: false, noteIndex: 0, velocity: 0.5 },
+      { active: true, noteIndex: 7, velocity: 0.82 },
+      { active: false, noteIndex: 0, velocity: 0.5 },
+      { active: true, noteIndex: 5, velocity: 0.6 }
+    ]
+  },
+  {
+    id: 'liquid_alchemy_bubbles',
+    name: 'Liquid Alchemy Bubbles',
+    scaleId: 'phrygian_dom',
+    bpm: 142,
+    steps: [
+      { active: true, noteIndex: 0, velocity: 0.9 },
+      { active: true, noteIndex: 4, velocity: 0.75 },
+      { active: true, noteIndex: 7, velocity: 0.85 },
+      { active: true, noteIndex: 1, velocity: 0.7 },
+      { active: true, noteIndex: 9, velocity: 0.95 },
+      { active: false, noteIndex: 0, velocity: 0.5 },
+      { active: true, noteIndex: 6, velocity: 0.82 },
+      { active: true, noteIndex: 3, velocity: 0.78 },
+      { active: true, noteIndex: 0, velocity: 0.92 },
+      { active: true, noteIndex: 8, velocity: 0.88 },
+      { active: true, noteIndex: 5, velocity: 0.72 },
+      { active: true, noteIndex: 11, velocity: 0.96 },
+      { active: true, noteIndex: 2, velocity: 0.68 },
+      { active: true, noteIndex: 7, velocity: 0.85 },
+      { active: true, noteIndex: 4, velocity: 0.74 },
+      { active: true, noteIndex: 10, velocity: 0.9 }
+    ]
+  },
+  {
+    id: 'hainbach_tape_pulse',
+    name: 'Hainbach Tape Reel',
+    scaleId: 'whole_tone',
+    bpm: 78,
+    steps: [
+      { active: true, noteIndex: 0, velocity: 0.85 },
+      { active: false, noteIndex: 0, velocity: 0.5 },
+      { active: false, noteIndex: 0, velocity: 0.5 },
+      { active: false, noteIndex: 0, velocity: 0.5 },
+      { active: true, noteIndex: 3, velocity: 0.7 },
+      { active: false, noteIndex: 0, velocity: 0.5 },
+      { active: true, noteIndex: 5, velocity: 0.62 },
+      { active: false, noteIndex: 0, velocity: 0.5 },
+      { active: false, noteIndex: 0, velocity: 0.5 },
+      { active: true, noteIndex: 2, velocity: 0.75 },
+      { active: false, noteIndex: 0, velocity: 0.5 },
+      { active: false, noteIndex: 0, velocity: 0.5 },
+      { active: true, noteIndex: 4, velocity: 0.68 },
+      { active: false, noteIndex: 0, velocity: 0.5 },
+      { active: true, noteIndex: 1, velocity: 0.58 },
+      { active: false, noteIndex: 0, velocity: 0.5 }
     ]
   }
 ];

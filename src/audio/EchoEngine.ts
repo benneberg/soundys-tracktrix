@@ -7,9 +7,24 @@
  */
 
 export type OscillatorWave = 'sawtooth' | 'triangle' | 'sine' | 'square';
-export type GrainTextureType = 'metallic' | 'choir' | 'subterranean' | 'glitch';
+export type GrainTextureType =
+  | 'metallic'
+  | 'choir'
+  | 'subterranean'
+  | 'glitch'
+  | 'tape'
+  | 'hypnotic'
+  | 'liquid';
 export type OrbitShapeType = 'circle' | 'figure8' | 'spiral' | 'stalker' | 'pendulum' | 'manual';
-export type PresetCategory = 'industrial' | 'void' | 'psychedelic' | 'horror' | 'custom';
+export type PresetCategory =
+  | 'industrial'
+  | 'void'
+  | 'psychedelic'
+  | 'horror'
+  | 'tape'
+  | 'hypnotic'
+  | 'liquid'
+  | 'custom';
 
 export interface GameplayStateVector {
   tension: number;      // 0.0 to 1.0
@@ -125,6 +140,12 @@ const DARK_FORMANTS: [number, number][] = [
   [480, 1680], // 'EH' (Strained groan)
   [270, 2150]  // 'EE' (Wailing specter)
 ];
+
+function clampFinite(value: unknown, min: number, max: number, fallback: number): number {
+  const n = typeof value === 'number' ? value : Number(value);
+  if (!Number.isFinite(n)) return fallback;
+  return Math.max(min, Math.min(max, n));
+}
 
 export class EchoEngine {
   public ctx: AudioContext | null = null;
@@ -374,42 +395,49 @@ export class EchoEngine {
     formantF1.connect(formantGain);
     formantF2.connect(formantGain);
 
-    // 5. Metallic Comb Filter / Karplus-Strong Resonator
+    // 5. Metallic Comb Filter / Karplus-Strong Resonator (with DC-blocker & safe feedback)
     const combInput = ctx.createGain();
     const combDelay = ctx.createDelay(0.1);
-    combDelay.delayTime.value = 1 / Math.max(25, this.params.filter.combFreq);
+    combDelay.delayTime.value = 1 / clampFinite(this.params.filter.combFreq, 30, 800, 110);
     const combDamp = ctx.createBiquadFilter();
     combDamp.type = 'lowpass';
-    combDamp.frequency.value = 3400;
+    combDamp.frequency.value = 3200;
+    const combDCBlock = ctx.createBiquadFilter();
+    combDCBlock.type = 'highpass';
+    combDCBlock.frequency.value = 24;
     const combFeedbackGain = ctx.createGain();
-    combFeedbackGain.gain.value = this.params.filter.combFeedback;
+    combFeedbackGain.gain.value = clampFinite(this.params.filter.combFeedback, 0, 0.85, 0.55);
     const combWetGain = ctx.createGain();
-    combWetGain.gain.value = this.params.filter.combMix * 0.65;
+    combWetGain.gain.value = clampFinite(this.params.filter.combMix, 0, 1, 0.22) * 0.65;
 
     combInput.connect(combDelay);
     combDelay.connect(combDamp);
-    combDamp.connect(combFeedbackGain);
+    combDamp.connect(combDCBlock);
+    combDCBlock.connect(combFeedbackGain);
     combFeedbackGain.connect(combDelay);
-    combDamp.connect(combWetGain);
+    combDCBlock.connect(combWetGain);
 
     // 6. Granular Cloud Bus
     const grainBus = ctx.createGain();
-    grainBus.gain.value = this.params.granular.mix;
+    grainBus.gain.value = clampFinite(this.params.granular.mix, 0, 1, 0.42);
 
-    // Pre-compute procedural grain buffers
+    // Pre-compute procedural grain buffers (including Tape, Hypnotic Dub, and Liquid Alchemy)
     this.grainBuffers = {
       metallic: this._createGrainTextureBuffer('metallic', 4.5),
       choir: this._createGrainTextureBuffer('choir', 4.5),
       subterranean: this._createGrainTextureBuffer('subterranean', 4.5),
-      glitch: this._createGrainTextureBuffer('glitch', 4.5)
+      glitch: this._createGrainTextureBuffer('glitch', 4.5),
+      tape: this._createGrainTextureBuffer('tape', 4.5),
+      hypnotic: this._createGrainTextureBuffer('hypnotic', 4.5),
+      liquid: this._createGrainTextureBuffer('liquid', 4.5)
     };
 
     // 7. Audio-Thread LFOs
     const lfoFilter = ctx.createOscillator();
     const lfoFilterGain = ctx.createGain();
     lfoFilter.type = 'sine';
-    lfoFilter.frequency.value = this.params.modulation.lfoRate;
-    lfoFilterGain.gain.value = this.params.modulation.lfoDepth;
+    lfoFilter.frequency.value = clampFinite(this.params.modulation.lfoRate, 0.02, 12, 0.12);
+    lfoFilterGain.gain.value = clampFinite(this.params.modulation.lfoDepth, 0, 900, 140);
     lfoFilter.connect(lfoFilterGain);
     lfoFilterGain.connect(mainFilter.frequency);
 
@@ -417,22 +445,25 @@ export class EchoEngine {
     const lfoPanGain = ctx.createGain();
     lfoPan.type = 'triangle';
     lfoPan.frequency.value = 0.07;
-    lfoPanGain.gain.value = this.params.modulation.stereoWidth * 0.7;
+    lfoPanGain.gain.value = clampFinite(this.params.modulation.stereoWidth, 0, 1, 0.6) * 0.7;
 
-    // 8. Voice Bus & 3D HRTF Spatial Panner + Haas Binaural Widener
+    // 8. Voice Bus -> SpatialInput (combWetGain feeds spatialInput, NOT voiceBus, preventing double-feedback blowup!)
     const voiceBus = ctx.createGain();
     voiceBus.gain.value = 0.85;
+    const spatialInput = ctx.createGain();
+    spatialInput.gain.value = 1.0;
 
     ringDryGain.connect(voiceBus);
     ringWetGain.connect(voiceBus);
     noiseGain.connect(voiceBus);
     formantGain.connect(voiceBus);
 
-    // Feed voiceBus and grainBus into Comb Resonator
+    // Feed dry voiceBus & grainBus into Comb Resonator, and sum post-comb into spatialInput
     voiceBus.connect(combInput);
     grainBus.connect(combInput);
-    combWetGain.connect(voiceBus);
-    grainBus.connect(voiceBus);
+    voiceBus.connect(spatialInput);
+    grainBus.connect(spatialInput);
+    combWetGain.connect(spatialInput);
 
     // 3D PannerNode (HRTF Spatializer)
     const panner3D = ctx.createPanner();
@@ -463,9 +494,9 @@ export class EchoEngine {
     const splitter = ctx.createChannelSplitter(2);
     const merger = ctx.createChannelMerger(2);
     const haasDelayR = ctx.createDelay(0.05);
-    haasDelayR.delayTime.value = this.params.spatial.haasWidth;
+    haasDelayR.delayTime.value = clampFinite(this.params.spatial.haasWidth, 0, 0.035, 0.008);
 
-    voiceBus.connect(panner3D);
+    spatialInput.connect(panner3D);
     panner3D.connect(stereoPanner);
     stereoPanner.connect(splitter);
     splitter.connect(merger, 0, 0);
@@ -605,6 +636,46 @@ export class EchoEngine {
         const groan = Math.tanh(Math.sin(2 * Math.PI * 73.4 * t) * 3.0) * 0.4;
         const crackle = (Math.random() * 2 - 1) * Math.pow(Math.sin(2 * Math.PI * 3.7 * t) * 0.5 + 0.5, 6);
         sample = sub * 0.55 + groan + crackle * 0.35;
+      } else if (type === 'tape') {
+        // Hainbach-inspired vintage test gear, decaying magnetic tape loops, flutter & shortwave static
+        const flutter = 1 + Math.sin(2 * Math.PI * 2.8 * t) * 0.018 + Math.sin(2 * Math.PI * 6.4 * t) * 0.008;
+        const loopBeat = Math.pow(0.5 + 0.5 * Math.sin(2 * Math.PI * 1.15 * t), 2.5);
+        const testTone =
+          0.34 * Math.sin(2 * Math.PI * 196 * flutter * t) +
+          0.22 * Math.sin(2 * Math.PI * 293.66 * flutter * t + 0.6) +
+          0.14 * Math.sin(2 * Math.PI * 440 * flutter * t * 0.995);
+        const radioSweepFreq = 520 + Math.sin(2 * Math.PI * 0.43 * t) * 320;
+        const radioWhistle = Math.sin(2 * Math.PI * radioSweepFreq * t) * 0.07 * Math.max(0, Math.sin(2 * Math.PI * 0.7 * t));
+        const hiss = (Math.random() * 2 - 1) * 0.16;
+        const dustPop = Math.random() < 0.0022 ? (Math.random() * 2 - 1) * 0.85 : 0;
+        sample = Math.tanh((testTone * (0.35 + 0.65 * loopBeat) + hiss + radioWhistle) * 1.4) * 0.65 + dustPop * 0.45;
+      } else if (type === 'hypnotic') {
+        // Hypnus Slink-inspired deep Nordic dub-techno chord stabs & subterranean modular pulse
+        const pulseRate = 2.0; // 120 BPM 8th-note groove inside buffer
+        const phase = (t * pulseRate) % 1;
+        const env = Math.exp(-phase * 5.2) * (1 - Math.exp(-phase * 90));
+        // Minor 9th suspended dub chord (root, minor 3rd, 5th, minor 7th, 9th)
+        const f0 = 110;
+        const chord =
+          0.35 * Math.sin(2 * Math.PI * f0 * t) +
+          0.25 * Math.sin(2 * Math.PI * (f0 * 1.1892) * t) +
+          0.22 * Math.sin(2 * Math.PI * (f0 * 1.4983) * t) +
+          0.18 * Math.sin(2 * Math.PI * (f0 * 1.7818) * t) +
+          0.16 * Math.sin(2 * Math.PI * (f0 * 2.2449) * t);
+        const subPulse = Math.sin(2 * Math.PI * 55 * t) * Math.exp(-phase * 7.5) * 0.45;
+        sample = Math.tanh(chord * env * 2.2) * 0.65 + subPulse;
+      } else if (type === 'liquid') {
+        // G-Sonique Organic Liquid Alchemy: squelchy FM droplets, bubbling resonant chirps
+        const dropRate = 5.5;
+        const dropIdx = Math.floor(t * dropRate);
+        const dropPhase = (t * dropRate) % 1;
+        const dropEnv = Math.exp(-dropPhase * 9.5) * Math.sin(Math.min(1, dropPhase * 12) * Math.PI * 0.5);
+        const startF = 160 + ((dropIdx * 137) % 420);
+        const sweepF = startF * (1 + 2.4 * Math.exp(-dropPhase * 8));
+        const fmMod = Math.sin(2 * Math.PI * (sweepF * 1.41) * t) * (3.5 * (1 - dropPhase));
+        const bubble = Math.sin(2 * Math.PI * sweepF * t + fmMod) * dropEnv;
+        const squelch = Math.tanh(Math.sin(2 * Math.PI * (95 + Math.sin(2 * Math.PI * 3.2 * t) * 45) * t) * 3.2) * 0.25;
+        sample = bubble * 0.78 + squelch;
       } else {
         // 'glitch': Fractal XOR-like stepped bit-crushed alien telemetry
         const stepRate = Math.floor(t * 24) % 7;
@@ -708,7 +779,7 @@ export class EchoEngine {
     const roots = [34.65, 36.7, 41.2, 43.65, 46.25, 49.0, 51.9, 55.0, 61.7, 65.4, 73.4, 82.4];
     const baseFreq = roots[Math.floor(r() * roots.length)] * (0.97 + r() * 0.06);
     const waves: OscillatorWave[] = ['sawtooth', 'triangle', 'sine', 'square'];
-    const textures: GrainTextureType[] = ['metallic', 'choir', 'subterranean', 'glitch'];
+    const textures: GrainTextureType[] = ['metallic', 'choir', 'subterranean', 'glitch', 'tape', 'hypnotic', 'liquid'];
     const orbits: OrbitShapeType[] = ['circle', 'figure8', 'spiral', 'stalker', 'pendulum'];
 
     this.params.synth.baseFreq = Number(baseFreq.toFixed(1));
@@ -720,14 +791,14 @@ export class EchoEngine {
     this.params.synth.noiseLevel = Number((0.12 + r() * 0.38).toFixed(2));
     this.params.synth.ringModFreq = Math.round(35 + r() * 280);
     this.params.synth.ringModMix = Number((r() * 0.45).toFixed(2));
-    this.params.synth.pitchCreep = Number(((r() - 0.5) * 0.5).toFixed(2));
+    this.params.synth.pitchCreep = Number(((r() - 0.5) * 0.4).toFixed(2));
 
     this.params.filter.cutoff = Math.round(130 + r() * 750);
-    this.params.filter.resonance = Number((2.0 + r() * 9.5).toFixed(1));
+    this.params.filter.resonance = Number((2.0 + r() * 9.0).toFixed(1));
     this.params.filter.noiseCutoff = Math.round(280 + r() * 1700);
-    this.params.filter.noiseQ = Number((3.0 + r() * 11.0).toFixed(1));
+    this.params.filter.noiseQ = Number((3.0 + r() * 10.0).toFixed(1));
     this.params.filter.combFreq = Math.round(55 + r() * 240);
-    this.params.filter.combFeedback = Number((0.35 + r() * 0.5).toFixed(2));
+    this.params.filter.combFeedback = Number((0.32 + r() * 0.45).toFixed(2));
     this.params.filter.combMix = Number((0.1 + r() * 0.45).toFixed(2));
     this.params.filter.formantMorph = Number(r().toFixed(2));
     this.params.filter.formantMix = Number((0.15 + r() * 0.55).toFixed(2));
@@ -823,6 +894,27 @@ export class EchoEngine {
     env.gain.linearRampToValueAtTime(peakGain * 0.85, now + duration * 0.65);
     env.gain.exponentialRampToValueAtTime(0.0001, now + duration);
 
+    // Optional per-grain resonant filter for Liquid Alchemy & Tape warmth
+    let outputNode: AudioNode = env;
+    if (g.texture === 'liquid') {
+      const liquidBp = ctx.createBiquadFilter();
+      liquidBp.type = 'bandpass';
+      const fStart = clampFinite(280 + Math.random() * 1400, 120, 4200, 700);
+      const fEnd = clampFinite(fStart * (0.45 + Math.random() * 1.9), 140, 4800, 1100);
+      liquidBp.frequency.setValueAtTime(fStart, now);
+      liquidBp.frequency.exponentialRampToValueAtTime(fEnd, now + duration);
+      liquidBp.Q.value = 5.5 + tension * 4.5;
+      env.connect(liquidBp);
+      outputNode = liquidBp;
+    } else if (g.texture === 'tape') {
+      const tapeLp = ctx.createBiquadFilter();
+      tapeLp.type = 'lowpass';
+      tapeLp.frequency.value = 2400 + Math.random() * 1200;
+      tapeLp.Q.value = 1.2;
+      env.connect(tapeLp);
+      outputNode = tapeLp;
+    }
+
     // Per-grain spatial scatter
     const panX = (Math.random() * 2 - 1) * g.spread;
     const panZ = (Math.random() * 2 - 1) * g.spread;
@@ -830,11 +922,11 @@ export class EchoEngine {
     if (panner) {
       panner.pan.value = Math.max(-1, Math.min(1, panX));
       source.connect(env);
-      env.connect(panner);
+      outputNode.connect(panner);
       panner.connect(this.nodes.grainBus);
     } else {
       source.connect(env);
-      env.connect(this.nodes.grainBus);
+      outputNode.connect(this.nodes.grainBus);
     }
 
     source.start(now, startOffset, duration + 0.02);
@@ -931,9 +1023,10 @@ export class EchoEngine {
         distance: dist
       };
 
-      // Shepard-like pitch creep + Doppler modulation
-      if (Math.abs(this.params.synth.pitchCreep) > 0.01 || sp.dopplerShift > 0.02) {
-        this.driftOffsets.creepPhase = (this.driftOffsets.creepPhase + this.params.synth.pitchCreep * 0.008) % 1;
+      // Smooth bounded pitch creep (prevents runaway high pitch) + texture-aware motion
+      const tex = this.params.granular.texture;
+      if (Math.abs(this.params.synth.pitchCreep) > 0.01 || sp.dopplerShift > 0.02 || tex === 'tape') {
+        this.driftOffsets.creepPhase = (this.driftOffsets.creepPhase + this.params.synth.pitchCreep * 0.006) % 1;
         this._applyPitchOnly(0.05);
       }
     }, 40);
@@ -957,16 +1050,16 @@ export class EchoEngine {
     this.driftTimer = setInterval(() => {
       if (!this.isRunning || !this.ctx) return;
       const r = this.prng;
-      const speed = this.params.modulation.driftSpeed;
-      const inst = this.state.instability;
+      const speed = clampFinite(this.params.modulation.driftSpeed, 0, 1, 0.35);
+      const inst = clampFinite(this.state.instability, 0, 1, 0.25);
       const chaos = Math.min(1, speed * 0.6 + inst * 0.7);
 
-      this.driftOffsets.detune = (r() * 2 - 1) * 35 * chaos;
-      this.driftOffsets.cutoffFactor = 0.75 + r() * (0.5 + chaos * 0.65);
-      this.driftOffsets.noiseFactor = 0.65 + r() * (0.7 + chaos * 0.9);
-      this.driftOffsets.fmAdd = r() * 45 * chaos;
+      this.driftOffsets.detune = (r() * 2 - 1) * 32 * chaos;
+      this.driftOffsets.cutoffFactor = 0.78 + r() * (0.45 + chaos * 0.55);
+      this.driftOffsets.noiseFactor = 0.7 + r() * (0.6 + chaos * 0.8);
+      this.driftOffsets.fmAdd = r() * 40 * chaos;
 
-      const lfoJitter = this.params.modulation.lfoRate * (0.82 + r() * 0.36);
+      const lfoJitter = clampFinite(this.params.modulation.lfoRate, 0.02, 12, 0.12) * (0.85 + r() * 0.3);
       this.nodes.lfoFilter.frequency.setTargetAtTime(Math.max(0.02, lfoJitter), this.ctx.currentTime, 0.8);
       this._applyParameters(0.42);
     }, 400);
@@ -982,103 +1075,132 @@ export class EchoEngine {
   private _applyPitchOnly(glideTime = 0.06): void {
     if (!this.ctx || !this.nodes.osc1) return;
     const now = this.ctx.currentTime;
-    const { synth, spatial } = this.params;
-    const { progression } = this.state;
+    const { synth, spatial, granular } = this.params;
+    const progression = clampFinite(this.state.progression, 0, 1, 0.1);
 
     const progPitchMultiplier = 1 + progression * 0.22;
-    const creepMultiplier = Math.pow(2, this.driftOffsets.creepPhase * 0.5);
-    const activeRoot = this.droneFreqOverride ?? synth.baseFreq;
-    const baseFreq = Math.max(20, activeRoot * progPitchMultiplier * creepMultiplier * this.spatialTelemetry.dopplerFactor);
+    // Smooth cyclic Shepard-like creep bounded to [-0.35, +0.35] octaves (no abrupt jumps or runaway pitch!)
+    const creepNorm = Math.sin(this.driftOffsets.creepPhase * Math.PI * 2) * (Math.abs(synth.pitchCreep) > 0.01 ? 0.28 : 0);
+    const creepMultiplier = Math.pow(2, creepNorm);
+
+    // Subtle analog tape wow/flutter when Tape Loop texture is active
+    const tapeFlutter =
+      granular.texture === 'tape'
+        ? 1 + Math.sin(now * 3.1) * 0.008 + Math.sin(now * 7.7) * 0.004
+        : 1;
+
+    const activeRoot = clampFinite(this.droneFreqOverride ?? synth.baseFreq, 20, 880, 55);
+    const doppler = clampFinite(this.spatialTelemetry.dopplerFactor, 0.75, 1.25, 1);
+    const baseFreq = clampFinite(activeRoot * progPitchMultiplier * creepMultiplier * doppler * tapeFlutter, 18, 1600, 55);
 
     // Binaural frequency offset between Osc 1 and Osc 2
-    const binOffset = spatial.binauralDetune * 0.5;
+    const binOffset = clampFinite(spatial.binauralDetune, 0, 25, 3.5) * 0.5;
+    const fmRatio = clampFinite(synth.fmRatio, 0.2, 6.0, 1.41);
     this.nodes.osc1.frequency.setTargetAtTime(Math.max(18, baseFreq - binOffset), now, glideTime);
     this.nodes.osc2.frequency.setTargetAtTime(Math.max(18, baseFreq + binOffset), now, glideTime);
-    this.nodes.subOsc.frequency.setTargetAtTime(baseFreq * 0.5, now, glideTime);
-    this.nodes.fmOsc.frequency.setTargetAtTime(baseFreq * synth.fmRatio, now, glideTime);
+    this.nodes.subOsc.frequency.setTargetAtTime(Math.max(14, baseFreq * 0.5), now, glideTime);
+    this.nodes.fmOsc.frequency.setTargetAtTime(clampFinite(baseFreq * fmRatio, 10, 4800, 80), now, glideTime);
   }
 
   private _applyParameters(glideTime = 0.15): void {
     if (!this.ctx || !this.nodes.osc1) return;
     const now = this.ctx.currentTime;
     const { synth, filter, granular, spatial, modulation, fx } = this.params;
-    const { tension, instability, proximity } = this.state;
+    const tension = clampFinite(this.state.tension, 0, 1, 0.2);
+    const instability = clampFinite(this.state.instability, 0, 1, 0.25);
+    const proximity = clampFinite(this.state.proximity, 0, 1, 0);
 
     // 1. Pitch & Detune
     this._applyPitchOnly(glideTime);
 
-    const totalDetune = synth.detuneSpread + instability * 30 + this.driftOffsets.detune;
-    this.nodes.osc1.detune.setTargetAtTime(-totalDetune * 0.5, now, glideTime);
-    this.nodes.osc2.detune.setTargetAtTime(totalDetune * 0.5, now, glideTime);
+    const totalDetune = clampFinite(synth.detuneSpread, 0, 100, 14) + instability * 28 + this.driftOffsets.detune;
+    this.nodes.osc1.detune.setTargetAtTime(clampFinite(-totalDetune * 0.5, -120, 120, -7), now, glideTime);
+    this.nodes.osc2.detune.setTargetAtTime(clampFinite(totalDetune * 0.5, -120, 120, 7), now, glideTime);
 
     // 2. FM, Sub & Ring Modulator
-    const effectiveFm = synth.fmDepth + tension * 65 + instability * 40 + this.driftOffsets.fmAdd;
+    const effectiveFm = clampFinite(
+      clampFinite(synth.fmDepth, 0, 200, 18) + tension * 55 + instability * 35 + this.driftOffsets.fmAdd,
+      0,
+      260,
+      18
+    );
     this.nodes.fmGain.gain.setTargetAtTime(effectiveFm, now, glideTime);
-    const effectiveSub = Math.min(0.9, (synth.subLevel + proximity * 0.35) * 0.55);
+    const effectiveSub = clampFinite((clampFinite(synth.subLevel, 0, 1, 0.45) + proximity * 0.3) * 0.55, 0, 0.9, 0.25);
     this.nodes.subGain.gain.setTargetAtTime(effectiveSub, now, glideTime);
 
-    const effectiveRingMix = Math.min(1, synth.ringModMix + instability * 0.22);
+    const effectiveRingMix = clampFinite(clampFinite(synth.ringModMix, 0, 1, 0.15) + instability * 0.2, 0, 0.95, 0.15);
     this.nodes.ringOsc.frequency.setTargetAtTime(
-      Math.max(10, synth.ringModFreq * (1 + tension * 0.4)),
+      clampFinite(clampFinite(synth.ringModFreq, 10, 1200, 92) * (1 + tension * 0.4), 10, 1600, 92),
       now,
       glideTime
     );
     this.nodes.ringDryGain.gain.setTargetAtTime(1 - effectiveRingMix * 0.65, now, glideTime);
     this.nodes.ringWetGain.gain.setTargetAtTime(effectiveRingMix, now, glideTime);
 
-    // 3. Main Filter Cutoff & Resonance
-    const tensionCutoffBoost = 1 + tension * 2.2 + proximity * 0.8;
-    const targetCutoff = Math.min(
-      7000,
-      Math.max(38, filter.cutoff * tensionCutoffBoost * this.driftOffsets.cutoffFactor)
+    // 3. Main Filter Cutoff & Resonance (strictly bounded Q to prevent IIR blowup)
+    const tensionCutoffBoost = 1 + tension * 2.0 + proximity * 0.7;
+    const targetCutoff = clampFinite(
+      clampFinite(filter.cutoff, 35, 5000, 320) * tensionCutoffBoost * this.driftOffsets.cutoffFactor,
+      38,
+      6800,
+      320
     );
-    const targetRes = Math.min(22, filter.resonance + tension * 4.5);
+    const targetRes = clampFinite(clampFinite(filter.resonance, 0.5, 16, 4.2) + tension * 3.5, 0.5, 14.5, 4.2);
     this.nodes.mainFilter.frequency.setTargetAtTime(targetCutoff, now, glideTime);
     this.nodes.mainFilter.Q.setTargetAtTime(targetRes, now, glideTime);
 
     // 4. Noise & Vocal Formant Cavity Filter
-    const targetNoiseFreq = Math.min(
-      6000,
-      Math.max(90, filter.noiseCutoff * (1 + tension * 0.9) * this.driftOffsets.noiseFactor)
+    const targetNoiseFreq = clampFinite(
+      clampFinite(filter.noiseCutoff, 80, 5000, 680) * (1 + tension * 0.85) * this.driftOffsets.noiseFactor,
+      80,
+      5800,
+      680
     );
     this.nodes.noiseFilter.frequency.setTargetAtTime(targetNoiseFreq, now, glideTime);
-    this.nodes.noiseFilter.Q.setTargetAtTime(Math.min(22, filter.noiseQ + instability * 5), now, glideTime);
-    this.nodes.noiseGain.gain.setTargetAtTime((synth.noiseLevel + tension * 0.15) * 0.45, now, glideTime);
+    this.nodes.noiseFilter.Q.setTargetAtTime(clampFinite(filter.noiseQ + instability * 4, 0.5, 14.5, 6.5), now, glideTime);
+    this.nodes.noiseGain.gain.setTargetAtTime(clampFinite((synth.noiseLevel + tension * 0.15) * 0.45, 0, 0.65, 0.12), now, glideTime);
 
     // Interpolate Dark Vowel Formants
-    const morphIdx = Math.max(0, Math.min(DARK_FORMANTS.length - 1.001, filter.formantMorph * (DARK_FORMANTS.length - 1)));
-    const i0 = Math.floor(morphIdx);
-    const frac = morphIdx - i0;
+    const morphIdx = clampFinite(filter.formantMorph, 0, 1, 0.3) * (DARK_FORMANTS.length - 1);
+    const i0 = Math.min(DARK_FORMANTS.length - 2, Math.floor(morphIdx));
+    const frac = Math.max(0, Math.min(1, morphIdx - i0));
     const f1 = DARK_FORMANTS[i0][0] * (1 - frac) + DARK_FORMANTS[i0 + 1][0] * frac;
     const f2 = DARK_FORMANTS[i0][1] * (1 - frac) + DARK_FORMANTS[i0 + 1][1] * frac;
     this.nodes.formantF1.frequency.setTargetAtTime(f1, now, glideTime);
     this.nodes.formantF2.frequency.setTargetAtTime(f2, now, glideTime);
-    this.nodes.formantGain.gain.setTargetAtTime(filter.formantMix * 0.55, now, glideTime);
+    this.nodes.formantGain.gain.setTargetAtTime(clampFinite(filter.formantMix, 0, 1, 0.35) * 0.55, now, glideTime);
 
-    // 5. Metallic Comb Resonator
-    const combDelaySec = 1 / Math.max(25, Math.min(1000, filter.combFreq * this.spatialTelemetry.dopplerFactor));
-    this.nodes.combDelay.delayTime.setTargetAtTime(combDelaySec, now, glideTime);
+    // 5. Metallic Comb Resonator (safe delay & feedback <= 0.86)
+    const doppler = clampFinite(this.spatialTelemetry.dopplerFactor, 0.75, 1.25, 1);
+    const combHz = clampFinite(clampFinite(filter.combFreq, 30, 750, 110) * doppler, 30, 800, 110);
+    this.nodes.combDelay.delayTime.setTargetAtTime(1 / combHz, now, glideTime);
     this.nodes.combFeedbackGain.gain.setTargetAtTime(
-      Math.min(0.93, filter.combFeedback + tension * 0.08),
+      clampFinite(filter.combFeedback + tension * 0.06, 0, 0.86, 0.55),
       now,
       glideTime
     );
-    this.nodes.combWetGain.gain.setTargetAtTime(filter.combMix * 0.65, now, glideTime);
+    this.nodes.combWetGain.gain.setTargetAtTime(clampFinite(filter.combMix, 0, 1, 0.22) * 0.65, now, glideTime);
 
     // 6. Granular Mix & Haas Widener
-    this.nodes.grainBus.gain.setTargetAtTime(granular.enabled ? granular.mix : 0.0001, now, glideTime);
-    this.nodes.haasDelayR.delayTime.setTargetAtTime(Math.max(0, Math.min(0.035, spatial.haasWidth)), now, glideTime);
+    this.nodes.grainBus.gain.setTargetAtTime(
+      granular.enabled ? clampFinite(granular.mix, 0, 1, 0.42) : 0.0001,
+      now,
+      glideTime
+    );
+    this.nodes.haasDelayR.delayTime.setTargetAtTime(clampFinite(spatial.haasWidth, 0, 0.035, 0.008), now, glideTime);
 
-    // 7. Modulation & FX
-    const effectiveLfoDepth = modulation.lfoDepth * (1 + tension * 0.7 + instability * 0.6);
-    this.nodes.lfoFilterGain.gain.setTargetAtTime(effectiveLfoDepth, now, glideTime);
-    this.nodes.lfoPanGain.gain.setTargetAtTime(modulation.stereoWidth * 0.75, now, glideTime);
+    // 7. Modulation & FX (clamp LFO depth <= 72% of targetCutoff so filter freq never hits 0/negative!)
+    const rawLfoDepth = clampFinite(modulation.lfoDepth, 0, 900, 140) * (1 + tension * 0.6 + instability * 0.5);
+    const safeLfoDepth = Math.min(rawLfoDepth, targetCutoff * 0.72);
+    this.nodes.lfoFilter.frequency.setTargetAtTime(clampFinite(modulation.lfoRate, 0.02, 12, 0.12), now, glideTime);
+    this.nodes.lfoFilterGain.gain.setTargetAtTime(safeLfoDepth, now, glideTime);
+    this.nodes.lfoPanGain.gain.setTargetAtTime(clampFinite(modulation.stereoWidth, 0, 1, 0.6) * 0.75, now, glideTime);
     this.nodes.lfoPan.frequency.setTargetAtTime(0.06 + proximity * 1.4, now, glideTime);
 
-    this.nodes.delayNode.delayTime.setTargetAtTime(fx.delayTime, now, glideTime);
-    this.nodes.delayFeedback.gain.setTargetAtTime(Math.min(0.91, fx.delayFeedback + tension * 0.12), now, glideTime);
-    this.nodes.delayWet.gain.setTargetAtTime(fx.delayMix, now, glideTime);
-    this.nodes.reverbWet.gain.setTargetAtTime(fx.reverbMix, now, glideTime);
+    this.nodes.delayNode.delayTime.setTargetAtTime(clampFinite(fx.delayTime, 0.05, 1.5, 0.42), now, glideTime);
+    this.nodes.delayFeedback.gain.setTargetAtTime(clampFinite(fx.delayFeedback + tension * 0.1, 0, 0.86, 0.48), now, glideTime);
+    this.nodes.delayWet.gain.setTargetAtTime(clampFinite(fx.delayMix, 0, 0.9, 0.32), now, glideTime);
+    this.nodes.reverbWet.gain.setTargetAtTime(clampFinite(fx.reverbMix, 0, 0.95, 0.45), now, glideTime);
   }
 
   public setState(partialState: Partial<GameplayStateVector>): void {
@@ -1280,8 +1402,10 @@ export class EchoEngine {
       }
       case 'sanityDrop': {
         // Psychedelic horror warp: extreme ring mod + reverse grain burst + pitch bend
-        this.nodes.ringWetGain.gain.setTargetAtTime(0.95, now, 0.05);
-        this.nodes.ringOsc.frequency.setTargetAtTime(48, now, 0.05);
+        this.nodes.ringWetGain.gain.cancelScheduledValues(now);
+        this.nodes.ringOsc.frequency.cancelScheduledValues(now);
+        this.nodes.ringWetGain.gain.setTargetAtTime(0.9, now, 0.05);
+        this.nodes.ringOsc.frequency.setValueAtTime(48, now);
         this.nodes.ringOsc.frequency.exponentialRampToValueAtTime(620, now + 1.1);
         for (let i = 0; i < 6; i++) {
           setTimeout(() => this._spawnGrain(), i * 55);
@@ -1302,7 +1426,8 @@ export class EchoEngine {
       }
       case 'stalkerSpawn': {
         // Creepy metallic comb screech + sub-heartbeat thud behind listener
-        this.nodes.combFeedbackGain.gain.setTargetAtTime(0.92, now, 0.04);
+        this.nodes.combFeedbackGain.gain.cancelScheduledValues(now);
+        this.nodes.combFeedbackGain.gain.setTargetAtTime(0.84, now, 0.04);
         this._spawnTransient({
           freqStart: 88,
           freqEnd: 34,
@@ -1415,11 +1540,73 @@ export class EchoEngine {
     if (preset.modulation) Object.assign(this.params.modulation, preset.modulation);
     if (preset.fx) Object.assign(this.params.fx, preset.fx);
 
+    // Reset transient pitch/drift state so switching presets never inherits runaway offsets
+    this.droneFreqOverride = null;
+    this.driftOffsets = {
+      detune: 0,
+      cutoffFactor: 1,
+      noiseFactor: 1,
+      fmAdd: 0,
+      creepPhase: 0,
+      stalkerX: 0,
+      stalkerZ: -1
+    };
+
     if (this.ctx && this.nodes.osc1) {
+      const now = this.ctx.currentTime;
+      // Cancel any in-flight scheduled ramps from events or previous presets
+      [
+        this.nodes.osc1.frequency,
+        this.nodes.osc2.frequency,
+        this.nodes.subOsc.frequency,
+        this.nodes.fmOsc.frequency,
+        this.nodes.ringOsc.frequency,
+        this.nodes.mainFilter.frequency,
+        this.nodes.combDelay.delayTime,
+        this.nodes.combFeedbackGain.gain
+      ].forEach((param) => {
+        try {
+          param.cancelScheduledValues(now);
+        } catch {
+          // ignore
+        }
+      });
+
       this.nodes.osc1.type = this.params.synth.osc1Type;
       this.nodes.osc2.type = this.params.synth.osc2Type;
-      this.nodes.shaper.curve = this._makeSoftClipCurve(this.params.fx.drive);
-      this._applyParameters(0.22);
+      this.nodes.shaper.curve = this._makeSoftClipCurve(clampFinite(this.params.fx.drive, 0, 1, 0.2));
+      this._applyParameters(0.18);
+    }
+  }
+
+  public async panicReset(): Promise<void> {
+    const wasRunning = this.isRunning;
+    this.isRunning = false;
+    this._stopStochasticDrift();
+    this._stopSpatial3DLoop();
+    this._stopGranularScheduler();
+    this.droneFreqOverride = null;
+    this.driftOffsets = {
+      detune: 0,
+      cutoffFactor: 1,
+      noiseFactor: 1,
+      fmAdd: 0,
+      creepPhase: 0,
+      stalkerX: 0,
+      stalkerZ: -1
+    };
+    if (this.ctx) {
+      try {
+        await this.ctx.close();
+      } catch {
+        // ignore
+      }
+      this.ctx = null;
+    }
+    this.nodes = {};
+    this.grainBuffers = null;
+    if (wasRunning) {
+      await this.start(this.seed);
     }
   }
 
