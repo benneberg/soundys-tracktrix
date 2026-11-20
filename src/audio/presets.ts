@@ -1259,6 +1259,262 @@ export const FACTORY_PRESETS: EchoPreset[] = [
     },
     modulation: { lfoRate: 1.45, lfoDepth: 480, driftSpeed: 0.8, stereoWidth: 1.0 },
     fx: { delayTime: 0.22, delayFeedback: 0.7, delayMix: 0.54, reverbMix: 0.48, drive: 0.34 }
+  },
+  {
+    name: 'Annulus Bowed Plate',
+    category: 'modal',
+    version: '2.0',
+    description: 'Physical modeling bowed steel plate with shimmering inharmonic modal partials (Annulus inspired).',
+    seed: 'annulus-plate-01',
+    synth: {
+      baseFreq: 55.0,
+      osc1Type: 'triangle',
+      osc2Type: 'sine',
+      detuneSpread: 10,
+      fmRatio: 1.41,
+      fmDepth: 16,
+      subLevel: 0.4,
+      noiseLevel: 0.24,
+      ringModFreq: 110,
+      ringModMix: 0.08,
+      pitchCreep: 0.02
+    },
+    filter: {
+      cutoff: 920,
+      resonance: 3.5,
+      noiseCutoff: 1450,
+      noiseQ: 5.5,
+      combFreq: 165.0,
+      combFeedback: 0.48,
+      combMix: 0.25,
+      formantMorph: 0.35,
+      formantMix: 0.18
+    },
+    granular: {
+      enabled: true,
+      texture: 'modal',
+      density: 11.0,
+      size: 0.16,
+      spray: 0.4,
+      pitch: 1.0,
+      pitchJitter: 0.18,
+      spread: 0.85,
+      reverseProb: 0.25,
+      mix: 0.46
+    },
+    spatial: {
+      orbitShape: 'pendulum',
+      orbitSpeed: 0.24,
+      orbitRadius: 2.8,
+      elevation: 0.35,
+      dopplerShift: 0.3,
+      binauralDetune: 2.8,
+      haasWidth: 0.011,
+      manualX: 0,
+      manualZ: -0.6
+    },
+    modulation: { lfoRate: 0.16, lfoDepth: 160, driftSpeed: 0.35, stereoWidth: 0.85 },
+    fx: { delayTime: 0.44, delayFeedback: 0.52, delayMix: 0.38, reverbMix: 0.68, drive: 0.16 },
+    modal: {
+      enabled: true,
+      material: 'plate',
+      inharmonicity: 0.38,
+      damping: 0.42,
+      bowPressure: 0.48,
+      mix: 0.78
+    }
+  },
+  {
+    name: 'Glass Membrane Bell',
+    category: 'modal',
+    version: '2.0',
+    description: 'Crystalline glass & struck drum-head resonator bank with glassy FM reflections.',
+    seed: 'annulus-glass-02',
+    synth: {
+      baseFreq: 65.4,
+      osc1Type: 'sine',
+      osc2Type: 'triangle',
+      detuneSpread: 7,
+      fmRatio: 2.75,
+      fmDepth: 22,
+      subLevel: 0.32,
+      noiseLevel: 0.16,
+      ringModFreq: 196,
+      ringModMix: 0.12,
+      pitchCreep: 0.0
+    },
+    filter: {
+      cutoff: 1650,
+      resonance: 2.8,
+      noiseCutoff: 2100,
+      noiseQ: 4.5,
+      combFreq: 261.6,
+      combFeedback: 0.42,
+      combMix: 0.22,
+      formantMorph: 0.62,
+      formantMix: 0.12
+    },
+    granular: {
+      enabled: true,
+      texture: 'modal',
+      density: 15.0,
+      size: 0.12,
+      spray: 0.52,
+      pitch: 1.5,
+      pitchJitter: 0.24,
+      spread: 0.92,
+      reverseProb: 0.35,
+      mix: 0.54
+    },
+    spatial: {
+      orbitShape: 'circle',
+      orbitSpeed: 0.38,
+      orbitRadius: 3.1,
+      elevation: 0.5,
+      dopplerShift: 0.28,
+      binauralDetune: 2.2,
+      haasWidth: 0.013,
+      manualX: 0,
+      manualZ: -0.5
+    },
+    modulation: { lfoRate: 0.22, lfoDepth: 210, driftSpeed: 0.3, stereoWidth: 0.9 },
+    fx: { delayTime: 0.375, delayFeedback: 0.58, delayMix: 0.46, reverbMix: 0.74, drive: 0.1 },
+    modal: {
+      enabled: true,
+      material: 'glass',
+      inharmonicity: 0.28,
+      damping: 0.22,
+      bowPressure: 0.22,
+      mix: 0.84
+    }
+  },
+  {
+    name: 'Zebralette Neuro Fold',
+    category: 'heavy',
+    version: '2.0',
+    description: 'Morphing spline wavetable core pushed into West-Coast multi-stage wavefolder saturation.',
+    seed: 'zebra-neuro-01',
+    synth: {
+      baseFreq: 41.2,
+      osc1Type: 'sawtooth',
+      osc2Type: 'square',
+      detuneSpread: 18,
+      fmRatio: 1.0,
+      fmDepth: 48,
+      subLevel: 0.72,
+      noiseLevel: 0.18,
+      ringModFreq: 82.4,
+      ringModMix: 0.22,
+      pitchCreep: 0.04
+    },
+    filter: {
+      cutoff: 780,
+      resonance: 7.4,
+      noiseCutoff: 960,
+      noiseQ: 6.2,
+      combFreq: 82.4,
+      combFeedback: 0.62,
+      combMix: 0.32,
+      formantMorph: 0.48,
+      formantMix: 0.38
+    },
+    granular: {
+      enabled: true,
+      texture: 'subterranean',
+      density: 12.0,
+      size: 0.09,
+      spray: 0.45,
+      pitch: 0.75,
+      pitchJitter: 0.22,
+      spread: 0.7,
+      reverseProb: 0.28,
+      mix: 0.3
+    },
+    spatial: {
+      orbitShape: 'figure8',
+      orbitSpeed: 0.44,
+      orbitRadius: 2.2,
+      elevation: 0.05,
+      dopplerShift: 0.35,
+      binauralDetune: 4.5,
+      haasWidth: 0.012,
+      manualX: 0,
+      manualZ: -0.45
+    },
+    modulation: { lfoRate: 0.65, lfoDepth: 340, driftSpeed: 0.45, stereoWidth: 0.85 },
+    fx: { delayTime: 0.28, delayFeedback: 0.54, delayMix: 0.34, reverbMix: 0.38, drive: 0.58 },
+    wavetable: {
+      enabled: true,
+      bank: 'neuro_spline',
+      position: 0.46,
+      foldDrive: 0.72,
+      spectralTilt: 0.22,
+      mix: 0.86
+    }
+  },
+  {
+    name: 'Spectral Acid Spine',
+    category: 'heavy',
+    version: '2.0',
+    description: 'Vowel-formant spline harmonics with biting West-Coast wavefolding & metallic sub-growl.',
+    seed: 'zebra-acid-02',
+    synth: {
+      baseFreq: 49.0,
+      osc1Type: 'sawtooth',
+      osc2Type: 'sawtooth',
+      detuneSpread: 22,
+      fmRatio: 2.0,
+      fmDepth: 62,
+      subLevel: 0.68,
+      noiseLevel: 0.14,
+      ringModFreq: 147,
+      ringModMix: 0.18,
+      pitchCreep: -0.05
+    },
+    filter: {
+      cutoff: 1120,
+      resonance: 9.2,
+      noiseCutoff: 1350,
+      noiseQ: 7.5,
+      combFreq: 147.0,
+      combFeedback: 0.58,
+      combMix: 0.28,
+      formantMorph: 0.74,
+      formantMix: 0.45
+    },
+    granular: {
+      enabled: true,
+      texture: 'glitch',
+      density: 16.0,
+      size: 0.06,
+      spray: 0.55,
+      pitch: 1.0,
+      pitchJitter: 0.32,
+      spread: 0.82,
+      reverseProb: 0.38,
+      mix: 0.26
+    },
+    spatial: {
+      orbitShape: 'spiral',
+      orbitSpeed: 0.68,
+      orbitRadius: 2.0,
+      elevation: 0.15,
+      dopplerShift: 0.45,
+      binauralDetune: 5.2,
+      haasWidth: 0.01,
+      manualX: 0,
+      manualZ: -0.4
+    },
+    modulation: { lfoRate: 1.15, lfoDepth: 440, driftSpeed: 0.55, stereoWidth: 0.88 },
+    fx: { delayTime: 0.24, delayFeedback: 0.6, delayMix: 0.38, reverbMix: 0.34, drive: 0.64 },
+    wavetable: {
+      enabled: true,
+      bank: 'spectral_formant',
+      position: 0.58,
+      foldDrive: 0.64,
+      spectralTilt: 0.38,
+      mix: 0.84
+    }
   }
 ];
 
@@ -1533,6 +1789,54 @@ export const SEQUENCER_PATTERNS: SequencerPattern[] = [
       { active: false, noteIndex: 0, velocity: 0.5 },
       { active: true, noteIndex: 1, velocity: 0.58 },
       { active: false, noteIndex: 0, velocity: 0.5 }
+    ]
+  },
+  {
+    id: 'annulus_glass_chimes',
+    name: 'Annulus Glass Chimes',
+    scaleId: 'minor_dub',
+    bpm: 108,
+    steps: [
+      { active: true, noteIndex: 0, velocity: 0.95 },
+      { active: false, noteIndex: 0, velocity: 0.5 },
+      { active: true, noteIndex: 5, velocity: 0.72 },
+      { active: false, noteIndex: 0, velocity: 0.5 },
+      { active: true, noteIndex: 7, velocity: 0.86 },
+      { active: true, noteIndex: 4, velocity: 0.65 },
+      { active: false, noteIndex: 0, velocity: 0.5 },
+      { active: true, noteIndex: 9, velocity: 0.9 },
+      { active: true, noteIndex: 2, velocity: 0.78 },
+      { active: false, noteIndex: 0, velocity: 0.5 },
+      { active: true, noteIndex: 11, velocity: 0.92 },
+      { active: false, noteIndex: 0, velocity: 0.5 },
+      { active: true, noteIndex: 6, velocity: 0.8 },
+      { active: true, noteIndex: 4, velocity: 0.68 },
+      { active: true, noteIndex: 2, velocity: 0.75 },
+      { active: false, noteIndex: 0, velocity: 0.5 }
+    ]
+  },
+  {
+    id: 'zebralette_neuro_bass',
+    name: 'Zebralette Neuro Spine',
+    scaleId: 'phrygian_dom',
+    bpm: 138,
+    steps: [
+      { active: true, noteIndex: 0, velocity: 1.0 },
+      { active: false, noteIndex: 0, velocity: 0.5 },
+      { active: true, noteIndex: 0, velocity: 0.72 },
+      { active: true, noteIndex: 1, velocity: 0.9 },
+      { active: false, noteIndex: 0, velocity: 0.5 },
+      { active: true, noteIndex: 4, velocity: 0.82 },
+      { active: true, noteIndex: 0, velocity: 0.95 },
+      { active: false, noteIndex: 0, velocity: 0.5 },
+      { active: true, noteIndex: 6, velocity: 0.88 },
+      { active: true, noteIndex: 1, velocity: 0.74 },
+      { active: false, noteIndex: 0, velocity: 0.5 },
+      { active: true, noteIndex: 7, velocity: 0.94 },
+      { active: true, noteIndex: 4, velocity: 0.8 },
+      { active: false, noteIndex: 0, velocity: 0.5 },
+      { active: true, noteIndex: 10, velocity: 0.92 },
+      { active: true, noteIndex: 1, velocity: 0.76 }
     ]
   }
 ];

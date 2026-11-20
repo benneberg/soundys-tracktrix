@@ -6,6 +6,19 @@
  * ============================================================================
  */
 
+import {
+  WavetableBankType,
+  createWavefolderCurve,
+  createWavetableBank
+} from './wavetables';
+import {
+  MODAL_RATIOS,
+  ModalMaterialType,
+  getModalWorkletUrl
+} from './modalWorklet';
+
+export type { WavetableBankType, ModalMaterialType };
+
 export type OscillatorWave = 'sawtooth' | 'triangle' | 'sine' | 'square';
 export type GrainTextureType =
   | 'metallic'
@@ -14,8 +27,10 @@ export type GrainTextureType =
   | 'glitch'
   | 'tape'
   | 'hypnotic'
-  | 'liquid';
+  | 'liquid'
+  | 'modal';
 export type OrbitShapeType = 'circle' | 'figure8' | 'spiral' | 'stalker' | 'pendulum' | 'manual';
+export type QualityTier = 'high' | 'mobile';
 export type PresetCategory =
   | 'industrial'
   | 'void'
@@ -24,6 +39,8 @@ export type PresetCategory =
   | 'tape'
   | 'hypnotic'
   | 'liquid'
+  | 'modal'
+  | 'heavy'
   | 'custom';
 
 export interface GameplayStateVector {
@@ -99,6 +116,24 @@ export interface FxParams {
   drive: number;
 }
 
+export interface ModalParams {
+  enabled: boolean;
+  material: ModalMaterialType;
+  inharmonicity: number; // 0.0 to 1.0
+  damping: number;       // 0.0 to 1.0
+  bowPressure: number;   // 0.0 to 1.0
+  mix: number;           // 0.0 to 1.0
+}
+
+export interface WavetableParams {
+  enabled: boolean;
+  bank: WavetableBankType;
+  position: number;     // 0.0 to 1.0 across 8 spline frames
+  foldDrive: number;    // 0.0 to 1.0 West-Coast wavefolder
+  spectralTilt: number; // -1.0 to +1.0
+  mix: number;          // 0.0 to 1.0
+}
+
 export interface EchoPreset {
   name: string;
   category?: PresetCategory;
@@ -111,6 +146,8 @@ export interface EchoPreset {
   spatial?: Partial<Spatial3DParams>;
   modulation: ModulationParams;
   fx: FxParams;
+  modal?: Partial<ModalParams>;
+  wavetable?: Partial<WavetableParams>;
 }
 
 export interface GrainVisualEvent {
@@ -156,6 +193,12 @@ export class EchoEngine {
   private spatialTimer: ReturnType<typeof setInterval> | null = null;
   private grainTimer: ReturnType<typeof setTimeout> | null = null;
   public masterVolume = 0.78;
+  public qualityTier: QualityTier =
+    typeof navigator !== 'undefined' && navigator.hardwareConcurrency && navigator.hardwareConcurrency <= 4
+      ? 'mobile'
+      : 'high';
+  private modalWorkletReady = false;
+  private wavetableFrames: PeriodicWave[] = [];
 
   public state: GameplayStateVector = {
     tension: 0.2,
@@ -171,6 +214,8 @@ export class EchoEngine {
     spatial: Spatial3DParams;
     modulation: ModulationParams;
     fx: FxParams;
+    modal: ModalParams;
+    wavetable: WavetableParams;
   } = {
     synth: {
       baseFreq: 55.0,
@@ -231,6 +276,22 @@ export class EchoEngine {
       delayMix: 0.32,
       reverbMix: 0.45,
       drive: 0.20
+    },
+    modal: {
+      enabled: false,
+      material: 'plate',
+      inharmonicity: 0.35,
+      damping: 0.45,
+      bowPressure: 0.32,
+      mix: 0.55
+    },
+    wavetable: {
+      enabled: false,
+      bank: 'neuro_spline',
+      position: 0.35,
+      foldDrive: 0.42,
+      spectralTilt: 0.0,
+      mix: 0.6
     }
   };
 
@@ -299,6 +360,17 @@ export class EchoEngine {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
     this.ctx = new AudioCtx({ latencyHint: 'interactive' });
+
+    // Load inline Blob AudioWorklet for Annulus Modal Physical Modeling
+    if (this.ctx.audioWorklet) {
+      try {
+        await this.ctx.audioWorklet.addModule(getModalWorkletUrl());
+        this.modalWorkletReady = true;
+      } catch {
+        this.modalWorkletReady = false;
+      }
+    }
+
     this._buildGraph();
   }
 
@@ -343,6 +415,44 @@ export class EchoEngine {
     osc1Gain.connect(mainFilter);
     osc2Gain.connect(mainFilter);
     subGain.connect(mainFilter);
+
+    // 2b. Zebralette-Inspired Morphing Spline Wavetable + West-Coast Wavefolder Stage
+    this.wavetableFrames = createWavetableBank(
+      ctx,
+      this.params.wavetable.bank,
+      this.params.wavetable.spectralTilt
+    );
+    const wtOscA = ctx.createOscillator();
+    const wtOscB = ctx.createOscillator();
+    const wtSubOsc = ctx.createOscillator();
+    const wtGainA = ctx.createGain();
+    const wtGainB = ctx.createGain();
+    const wtSubGain = ctx.createGain();
+    const wtFoldShaper = ctx.createWaveShaper();
+    const wtBus = ctx.createGain();
+
+    if (this.wavetableFrames.length > 0) {
+      wtOscA.setPeriodicWave(this.wavetableFrames[0]);
+      wtOscB.setPeriodicWave(this.wavetableFrames[Math.min(1, this.wavetableFrames.length - 1)]);
+    }
+    wtSubOsc.type = 'sine';
+    wtGainA.gain.value = 0.5;
+    wtGainB.gain.value = 0.0;
+    wtSubGain.gain.value = 0.45;
+    wtFoldShaper.curve = createWavefolderCurve(this.params.wavetable.foldDrive);
+    wtFoldShaper.oversample = '2x';
+    wtBus.gain.value = this.params.wavetable.enabled
+      ? clampFinite(this.params.wavetable.mix, 0, 1, 0.6) * 0.65
+      : 0.0001;
+
+    wtOscA.connect(wtGainA);
+    wtOscB.connect(wtGainB);
+    wtGainA.connect(wtFoldShaper);
+    wtGainB.connect(wtFoldShaper);
+    wtFoldShaper.connect(wtBus);
+    wtSubOsc.connect(wtSubGain);
+    wtSubGain.connect(wtBus);
+    wtBus.connect(mainFilter);
 
     // 3. Ring Modulator Stage (for uncanny metallic/alien/psychedelic dread)
     const ringCarrierGain = ctx.createGain();
@@ -421,7 +531,7 @@ export class EchoEngine {
     const grainBus = ctx.createGain();
     grainBus.gain.value = clampFinite(this.params.granular.mix, 0, 1, 0.42);
 
-    // Pre-compute procedural grain buffers (including Tape, Hypnotic Dub, and Liquid Alchemy)
+    // Pre-compute procedural grain buffers (including Tape, Hypnotic Dub, Liquid Alchemy, and Modal)
     this.grainBuffers = {
       metallic: this._createGrainTextureBuffer('metallic', 4.5),
       choir: this._createGrainTextureBuffer('choir', 4.5),
@@ -429,7 +539,8 @@ export class EchoEngine {
       glitch: this._createGrainTextureBuffer('glitch', 4.5),
       tape: this._createGrainTextureBuffer('tape', 4.5),
       hypnotic: this._createGrainTextureBuffer('hypnotic', 4.5),
-      liquid: this._createGrainTextureBuffer('liquid', 4.5)
+      liquid: this._createGrainTextureBuffer('liquid', 4.5),
+      modal: this._createGrainTextureBuffer('modal', 4.5)
     };
 
     // 7. Audio-Thread LFOs
@@ -458,16 +569,57 @@ export class EchoEngine {
     noiseGain.connect(voiceBus);
     formantGain.connect(voiceBus);
 
-    // Feed dry voiceBus & grainBus into Comb Resonator, and sum post-comb into spatialInput
+    // 8b. Annulus-Inspired Physical Modeling Modal Resonator (AudioWorklet + Biquad Fallback)
+    const modalBus = ctx.createGain();
+    modalBus.gain.value = this.params.modal.enabled
+      ? clampFinite(this.params.modal.mix, 0, 1, 0.55)
+      : 0.0001;
+    let modalWorkletNode: AudioWorkletNode | null = null;
+    const modalFallbackFilters: BiquadFilterNode[] = [];
+
+    if (this.modalWorkletReady && typeof AudioWorkletNode !== 'undefined') {
+      try {
+        modalWorkletNode = new AudioWorkletNode(ctx, 'modal-resonator-processor', {
+          numberOfInputs: 1,
+          numberOfOutputs: 1,
+          outputChannelCount: [2]
+        });
+        modalWorkletNode.port.postMessage({
+          type: 'ratios',
+          ratios: MODAL_RATIOS[this.params.modal.material]
+        });
+        voiceBus.connect(modalWorkletNode);
+        modalWorkletNode.connect(modalBus);
+      } catch {
+        modalWorkletNode = null;
+      }
+    }
+
+    if (!modalWorkletNode) {
+      // Fallback: 4 parallel resonant bandpass modes
+      const ratios = MODAL_RATIOS[this.params.modal.material].slice(0, 4);
+      ratios.forEach((ratio) => {
+        const bp = ctx.createBiquadFilter();
+        bp.type = 'bandpass';
+        bp.frequency.value = clampFinite(this.params.synth.baseFreq * 2 * ratio, 40, 4800, 220);
+        bp.Q.value = 18;
+        voiceBus.connect(bp);
+        bp.connect(modalBus);
+        modalFallbackFilters.push(bp);
+      });
+    }
+
+    // Feed dry voiceBus & grainBus into Comb Resonator, and sum post-comb & modal into spatialInput
     voiceBus.connect(combInput);
     grainBus.connect(combInput);
     voiceBus.connect(spatialInput);
     grainBus.connect(spatialInput);
     combWetGain.connect(spatialInput);
+    modalBus.connect(spatialInput);
 
-    // 3D PannerNode (HRTF Spatializer)
+    // 3D PannerNode (HRTF on Studio HQ, equalpower on Mobile Eco)
     const panner3D = ctx.createPanner();
-    panner3D.panningModel = 'HRTF';
+    panner3D.panningModel = this.qualityTier === 'mobile' ? 'equalpower' : 'HRTF';
     panner3D.distanceModel = 'inverse';
     panner3D.refDistance = 1.2;
     panner3D.maxDistance = 25;
@@ -572,6 +724,9 @@ export class EchoEngine {
     subOsc.start(now);
     fmOsc.start(now);
     ringOsc.start(now);
+    wtOscA.start(now);
+    wtOscB.start(now);
+    wtSubOsc.start(now);
     noiseSource.start(now);
     lfoFilter.start(now);
     lfoPan.start(now);
@@ -579,13 +734,15 @@ export class EchoEngine {
     this.nodes = {
       osc1, osc2, subOsc, fmOsc, ringOsc,
       osc1Gain, osc2Gain, subGain, fmGain,
+      wtOscA, wtOscB, wtSubOsc, wtGainA, wtGainB, wtSubGain, wtFoldShaper, wtBus,
+      modalBus, modalWorkletNode, modalFallbackFilters,
       ringCarrierGain, ringDryGain, ringWetGain,
       mainFilter, noiseSource, noiseFilter, noiseGain,
       formantF1, formantF2, formantGain,
       combInput, combDelay, combDamp, combFeedbackGain, combWetGain,
       grainBus,
       lfoFilter, lfoFilterGain, lfoPan, lfoPanGain,
-      voiceBus, panner3D, stereoPanner, haasDelayR, merger,
+      voiceBus, spatialInput, panner3D, stereoPanner, haasDelayR, merger,
       delayNode, delayFilter, delayFeedback, delayWet,
       convolver, reverbWet,
       shaper, compressor, analyser, analyserL, analyserR, masterGain
@@ -676,6 +833,17 @@ export class EchoEngine {
         const bubble = Math.sin(2 * Math.PI * sweepF * t + fmMod) * dropEnv;
         const squelch = Math.tanh(Math.sin(2 * Math.PI * (95 + Math.sin(2 * Math.PI * 3.2 * t) * 45) * t) * 3.2) * 0.25;
         sample = bubble * 0.78 + squelch;
+      } else if (type === 'modal') {
+        // Annulus-inspired struck/bowed metallic & glass modal harmonics
+        const strikeRate = 1.6;
+        const sPhase = (t * strikeRate) % 1;
+        const ratios = MODAL_RATIOS.glass;
+        let mSum = 0;
+        for (let m = 0; m < ratios.length; m++) {
+          const decay = Math.exp(-sPhase * (2.5 + m * 1.4));
+          mSum += (0.35 / (1 + m * 0.4)) * decay * Math.sin(2 * Math.PI * (146.8 * ratios[m]) * t);
+        }
+        sample = Math.tanh(mSum * 1.6) * 0.75;
       } else {
         // 'glitch': Fractal XOR-like stepped bit-crushed alien telemetry
         const stepRate = Math.floor(t * 24) % 7;
@@ -779,8 +947,19 @@ export class EchoEngine {
     const roots = [34.65, 36.7, 41.2, 43.65, 46.25, 49.0, 51.9, 55.0, 61.7, 65.4, 73.4, 82.4];
     const baseFreq = roots[Math.floor(r() * roots.length)] * (0.97 + r() * 0.06);
     const waves: OscillatorWave[] = ['sawtooth', 'triangle', 'sine', 'square'];
-    const textures: GrainTextureType[] = ['metallic', 'choir', 'subterranean', 'glitch', 'tape', 'hypnotic', 'liquid'];
+    const textures: GrainTextureType[] = [
+      'metallic',
+      'choir',
+      'subterranean',
+      'glitch',
+      'tape',
+      'hypnotic',
+      'liquid',
+      'modal'
+    ];
     const orbits: OrbitShapeType[] = ['circle', 'figure8', 'spiral', 'stalker', 'pendulum'];
+    const modalMaterials: ModalMaterialType[] = ['plate', 'membrane', 'glass', 'spring'];
+    const wtBanks: WavetableBankType[] = ['neuro_spline', 'spectral_formant', 'acid_fold', 'metallic_pwm'];
 
     this.params.synth.baseFreq = Number(baseFreq.toFixed(1));
     this.params.synth.osc1Type = waves[Math.floor(r() * 3)];
@@ -822,9 +1001,41 @@ export class EchoEngine {
     this.params.fx.delayTime = Number((0.2 + r() * 0.55).toFixed(2));
     this.params.fx.delayFeedback = Number((0.35 + r() * 0.44).toFixed(2));
 
+    this.params.modal = {
+      enabled: this.params.granular.texture === 'modal' || r() < 0.22,
+      material: modalMaterials[Math.floor(r() * modalMaterials.length)],
+      inharmonicity: Number((0.1 + r() * 0.65).toFixed(2)),
+      damping: Number((0.2 + r() * 0.6).toFixed(2)),
+      bowPressure: Number((0.15 + r() * 0.55).toFixed(2)),
+      mix: Number((0.4 + r() * 0.45).toFixed(2))
+    };
+
+    this.params.wavetable = {
+      enabled: r() < 0.28,
+      bank: wtBanks[Math.floor(r() * wtBanks.length)],
+      position: Number(r().toFixed(2)),
+      foldDrive: Number((0.2 + r() * 0.65).toFixed(2)),
+      spectralTilt: Number(((r() - 0.5) * 1.2).toFixed(2)),
+      mix: Number((0.45 + r() * 0.4).toFixed(2))
+    };
+
     if (this.ctx && this.nodes.osc1) {
       this.nodes.osc1.type = this.params.synth.osc1Type;
       this.nodes.osc2.type = this.params.synth.osc2Type;
+      this.wavetableFrames = createWavetableBank(
+        this.ctx,
+        this.params.wavetable.bank,
+        this.params.wavetable.spectralTilt
+      );
+      if (this.nodes.wtFoldShaper) {
+        this.nodes.wtFoldShaper.curve = createWavefolderCurve(this.params.wavetable.foldDrive);
+      }
+      if (this.nodes.modalWorkletNode) {
+        this.nodes.modalWorkletNode.port.postMessage({
+          type: 'ratios',
+          ratios: MODAL_RATIOS[this.params.modal.material] || MODAL_RATIOS.plate
+        });
+      }
       this._applyParameters(0.45);
     }
   }
@@ -841,8 +1052,9 @@ export class EchoEngine {
         this._spawnGrain();
       }
 
-      // Density increases dynamically with tension & instability
-      const effectiveDensity = Math.max(1, g.density * (1 + tension * 0.5 + instability * 0.4));
+      // Density increases dynamically with tension & instability (capped on mobile eco tier)
+      const rawDensity = g.density * (1 + tension * 0.5 + instability * 0.4);
+      const effectiveDensity = Math.max(1, this.qualityTier === 'mobile' ? Math.min(14, rawDensity) : rawDensity);
       const baseIntervalMs = 1000 / effectiveDensity;
       const jitterMs = (Math.random() * 2 - 1) * baseIntervalMs * g.spray * 0.65;
       const nextMs = Math.max(16, Math.min(1200, baseIntervalMs + jitterMs));
@@ -947,10 +1159,11 @@ export class EchoEngine {
     }
   }
 
-  // 25Hz 3D Spatial Orbit & Relativistic Doppler Engine
+  // 25Hz (HQ) or 15Hz (Mobile Eco) 3D Spatial Orbit & Relativistic Doppler Engine
   private _startSpatial3DLoop(): void {
     this._stopSpatial3DLoop();
-    const dt = 0.04; // 40ms (25 Hz)
+    const intervalMs = this.qualityTier === 'mobile' ? 66 : 40;
+    const dt = intervalMs / 1000;
     this.spatialTimer = setInterval(() => {
       if (!this.isRunning || !this.ctx || !this.nodes.panner3D) return;
       const sp = this.params.spatial;
@@ -1029,7 +1242,7 @@ export class EchoEngine {
         this.driftOffsets.creepPhase = (this.driftOffsets.creepPhase + this.params.synth.pitchCreep * 0.006) % 1;
         this._applyPitchOnly(0.05);
       }
-    }, 40);
+    }, intervalMs);
   }
 
   private _stopSpatial3DLoop(): void {
@@ -1100,6 +1313,19 @@ export class EchoEngine {
     this.nodes.osc2.frequency.setTargetAtTime(Math.max(18, baseFreq + binOffset), now, glideTime);
     this.nodes.subOsc.frequency.setTargetAtTime(Math.max(14, baseFreq * 0.5), now, glideTime);
     this.nodes.fmOsc.frequency.setTargetAtTime(clampFinite(baseFreq * fmRatio, 10, 4800, 80), now, glideTime);
+
+    // Wavetable & Modal pitch tracking
+    if (this.nodes.wtOscA && this.nodes.wtOscB && this.nodes.wtSubOsc) {
+      this.nodes.wtOscA.frequency.setTargetAtTime(Math.max(18, baseFreq), now, glideTime);
+      this.nodes.wtOscB.frequency.setTargetAtTime(Math.max(18, baseFreq * 1.003), now, glideTime);
+      this.nodes.wtSubOsc.frequency.setTargetAtTime(Math.max(14, baseFreq * 0.5), now, glideTime);
+    }
+    if (this.nodes.modalWorkletNode) {
+      const freqParam = this.nodes.modalWorkletNode.parameters.get('baseFreq');
+      if (freqParam) {
+        freqParam.setTargetAtTime(clampFinite(baseFreq * 2, 25, 1200, 110), now, glideTime);
+      }
+    }
   }
 
   private _applyParameters(glideTime = 0.15): void {
@@ -1201,11 +1427,75 @@ export class EchoEngine {
     this.nodes.delayFeedback.gain.setTargetAtTime(clampFinite(fx.delayFeedback + tension * 0.1, 0, 0.86, 0.48), now, glideTime);
     this.nodes.delayWet.gain.setTargetAtTime(clampFinite(fx.delayMix, 0, 0.9, 0.32), now, glideTime);
     this.nodes.reverbWet.gain.setTargetAtTime(clampFinite(fx.reverbMix, 0, 0.95, 0.45), now, glideTime);
+
+    // 8. Zebralette Wavetable Morphing & Wavefolder
+    const wt = this.params.wavetable;
+    if (this.nodes.wtBus) {
+      this.nodes.wtBus.gain.setTargetAtTime(
+        wt.enabled ? clampFinite(wt.mix, 0, 1, 0.6) * 0.65 : 0.0001,
+        now,
+        glideTime
+      );
+      if (this.wavetableFrames.length > 1) {
+        const scaledPos = clampFinite(wt.position + tension * 0.15, 0, 1, 0.35) * (this.wavetableFrames.length - 1);
+        const f0 = Math.min(this.wavetableFrames.length - 2, Math.floor(scaledPos));
+        const frac = Math.max(0, Math.min(1, scaledPos - f0));
+        this.nodes.wtOscA.setPeriodicWave(this.wavetableFrames[f0]);
+        this.nodes.wtOscB.setPeriodicWave(this.wavetableFrames[f0 + 1]);
+        this.nodes.wtGainA.gain.setTargetAtTime(1 - frac, now, 0.04);
+        this.nodes.wtGainB.gain.setTargetAtTime(frac, now, 0.04);
+      }
+    }
+
+    // 9. Annulus Physical Modeling Modal Resonator
+    const mod = this.params.modal;
+    if (this.nodes.modalBus) {
+      this.nodes.modalBus.gain.setTargetAtTime(
+        mod.enabled ? clampFinite(mod.mix, 0, 1, 0.55) : 0.0001,
+        now,
+        glideTime
+      );
+      if (this.nodes.modalWorkletNode) {
+        const p = this.nodes.modalWorkletNode.parameters;
+        p.get('inharmonicity')?.setTargetAtTime(clampFinite(mod.inharmonicity + instability * 0.15, 0, 1, 0.35), now, glideTime);
+        p.get('damping')?.setTargetAtTime(clampFinite(mod.damping, 0, 1, 0.45), now, glideTime);
+        p.get('bowPressure')?.setTargetAtTime(clampFinite(mod.bowPressure + tension * 0.25, 0, 1, 0.32), now, glideTime);
+      } else if (Array.isArray(this.nodes.modalFallbackFilters)) {
+        const ratios = MODAL_RATIOS[mod.material] || MODAL_RATIOS.plate;
+        this.nodes.modalFallbackFilters.forEach((bp: BiquadFilterNode, idx: number) => {
+          const r = ratios[idx] || (idx + 1);
+          const f = clampFinite(synth.baseFreq * 2 * r * (1 + mod.inharmonicity * 0.25 * idx), 40, 5200, 220);
+          bp.frequency.setTargetAtTime(f, now, glideTime);
+        });
+      }
+    }
   }
 
   public setState(partialState: Partial<GameplayStateVector>): void {
     Object.assign(this.state, partialState);
     this._applyParameters(0.16);
+  }
+
+  public setQualityTier(tier: QualityTier): void {
+    this.qualityTier = tier;
+    if (this.nodes.panner3D) {
+      this.nodes.panner3D.panningModel = tier === 'mobile' ? 'equalpower' : 'HRTF';
+    }
+    if (this.isRunning) {
+      this._startSpatial3DLoop();
+    }
+  }
+
+  public triggerModalStrike(freq?: number, velocity = 0.85): void {
+    if (!this.ctx || !this.isRunning) return;
+    if (this.nodes.modalWorkletNode) {
+      if (freq && Number.isFinite(freq)) {
+        this.nodes.modalWorkletNode.parameters
+          .get('baseFreq')
+          ?.setTargetAtTime(clampFinite(freq, 25, 1200, 110), this.ctx.currentTime, 0.01);
+      }
+      this.nodes.modalWorkletNode.port.postMessage({ type: 'strike', velocity });
+    }
   }
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -1222,6 +1512,24 @@ export class EchoEngine {
     if (category === 'fx' && key === 'drive') {
       this.nodes.shaper.curve = this._makeSoftClipCurve(Number(value));
       return;
+    }
+    if (category === 'wavetable') {
+      if (key === 'bank' || key === 'spectralTilt') {
+        this.wavetableFrames = createWavetableBank(
+          this.ctx,
+          this.params.wavetable.bank,
+          this.params.wavetable.spectralTilt
+        );
+      }
+      if (key === 'foldDrive' && this.nodes.wtFoldShaper) {
+        this.nodes.wtFoldShaper.curve = createWavefolderCurve(Number(value));
+      }
+    }
+    if (category === 'modal' && key === 'material' && this.nodes.modalWorkletNode) {
+      this.nodes.modalWorkletNode.port.postMessage({
+        type: 'ratios',
+        ratios: MODAL_RATIOS[value as ModalMaterialType] || MODAL_RATIOS.plate
+      });
     }
     this._applyParameters(0.08);
   }
@@ -1253,6 +1561,10 @@ export class EchoEngine {
 
     if (options.routeToDrone) {
       this.setDroneNote(freq, options.glide ?? 0.06);
+    }
+
+    if (this.params.modal.enabled) {
+      this.triggerModalStrike(freq, velocity * 0.85);
     }
 
     const osc1 = ctx.createOscillator();
@@ -1356,6 +1668,9 @@ export class EchoEngine {
         break;
       }
       case 'obstaclePassed': {
+        if (this.params.modal.enabled) {
+          this.triggerModalStrike(this.params.synth.baseFreq * 3, 0.75);
+        }
         this._spawnTransient({
           freqStart: this.params.synth.baseFreq * 3,
           freqEnd: this.params.synth.baseFreq * 1.5,
@@ -1368,6 +1683,9 @@ export class EchoEngine {
         break;
       }
       case 'nearMiss': {
+        if (this.params.modal.enabled) {
+          this.triggerModalStrike(this.params.synth.baseFreq * 4, 0.95 * intensity);
+        }
         this._spawnTransient({
           freqStart: 660 + r() * 180,
           freqEnd: 130,
@@ -1380,6 +1698,9 @@ export class EchoEngine {
         break;
       }
       case 'collision': {
+        if (this.params.modal.enabled) {
+          this.triggerModalStrike(this.params.synth.baseFreq * 1.5, 1.3 * intensity);
+        }
         this._spawnTransient({
           freqStart: 140,
           freqEnd: 26,
@@ -1540,6 +1861,26 @@ export class EchoEngine {
     if (preset.modulation) Object.assign(this.params.modulation, preset.modulation);
     if (preset.fx) Object.assign(this.params.fx, preset.fx);
 
+    // Reset modal & wavetable unless explicitly enabled by the loaded preset
+    this.params.modal = {
+      enabled: false,
+      material: 'plate',
+      inharmonicity: 0.35,
+      damping: 0.45,
+      bowPressure: 0.32,
+      mix: 0.55,
+      ...(preset.modal || {})
+    };
+    this.params.wavetable = {
+      enabled: false,
+      bank: 'neuro_spline',
+      position: 0.35,
+      foldDrive: 0.42,
+      spectralTilt: 0.0,
+      mix: 0.6,
+      ...(preset.wavetable || {})
+    };
+
     // Reset transient pitch/drift state so switching presets never inherits runaway offsets
     this.droneFreqOverride = null;
     this.driftOffsets = {
@@ -1575,6 +1916,21 @@ export class EchoEngine {
       this.nodes.osc1.type = this.params.synth.osc1Type;
       this.nodes.osc2.type = this.params.synth.osc2Type;
       this.nodes.shaper.curve = this._makeSoftClipCurve(clampFinite(this.params.fx.drive, 0, 1, 0.2));
+      this.wavetableFrames = createWavetableBank(
+        this.ctx,
+        this.params.wavetable.bank,
+        this.params.wavetable.spectralTilt
+      );
+      if (this.nodes.wtFoldShaper) {
+        this.nodes.wtFoldShaper.curve = createWavefolderCurve(this.params.wavetable.foldDrive);
+      }
+      if (this.nodes.modalWorkletNode) {
+        this.nodes.modalWorkletNode.port.postMessage({
+          type: 'ratios',
+          ratios: MODAL_RATIOS[this.params.modal.material] || MODAL_RATIOS.plate
+        });
+        this.nodes.modalWorkletNode.port.postMessage({ type: 'reset' });
+      }
       this._applyParameters(0.18);
     }
   }
@@ -1605,6 +1961,7 @@ export class EchoEngine {
     }
     this.nodes = {};
     this.grainBuffers = null;
+    this.modalWorkletReady = false;
     if (wasRunning) {
       await this.start(this.seed);
     }
@@ -1621,7 +1978,9 @@ export class EchoEngine {
       granular: { ...this.params.granular },
       spatial: { ...this.params.spatial },
       modulation: { ...this.params.modulation },
-      fx: { ...this.params.fx }
+      fx: { ...this.params.fx },
+      modal: { ...this.params.modal },
+      wavetable: { ...this.params.wavetable }
     };
   }
 
@@ -1637,20 +1996,32 @@ export class EchoEngine {
   }
 
   private _bindLifecycle(): void {
-    document.addEventListener('visibilitychange', () => {
+    const suspendAudio = () => {
       if (!this.ctx || !this.isRunning) return;
-      if (document.hidden) {
-        this.nodes.masterGain.gain.setTargetAtTime(0.0001, this.ctx.currentTime, 0.05);
-        setTimeout(() => {
-          if (document.hidden && this.ctx) this.ctx.suspend();
-        }, 160);
-      } else {
-        this.ctx.resume().then(() => {
-          if (this.ctx) {
-            this.nodes.masterGain.gain.setTargetAtTime(this.masterVolume, this.ctx.currentTime, 0.15);
-          }
-        });
-      }
+      this.nodes.masterGain?.gain.setTargetAtTime(0.0001, this.ctx.currentTime, 0.05);
+      setTimeout(() => {
+        if ((document.hidden || !document.hasFocus()) && this.ctx && this.ctx.state === 'running') {
+          this.ctx.suspend();
+        }
+      }, 160);
+    };
+
+    const resumeAudio = () => {
+      if (!this.ctx || !this.isRunning) return;
+      this.ctx.resume().then(() => {
+        if (this.ctx && this.nodes.masterGain) {
+          this.nodes.masterGain.gain.setTargetAtTime(this.masterVolume, this.ctx.currentTime, 0.15);
+        }
+      });
+    };
+
+    document.addEventListener('visibilitychange', () => {
+      if (document.hidden) suspendAudio();
+      else resumeAudio();
     });
+
+    // Mobile Safari / iOS backgrounding support
+    window.addEventListener('pagehide', suspendAudio);
+    window.addEventListener('pageshow', resumeAudio);
   }
 }

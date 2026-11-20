@@ -3,9 +3,12 @@ import {
   EchoEngine,
   EchoPreset,
   GrainTextureType,
+  ModalMaterialType,
   OrbitShapeType,
   OscillatorWave,
-  PresetCategory
+  PresetCategory,
+  QualityTier,
+  WavetableBankType
 } from './audio/EchoEngine';
 import { FACTORY_PRESETS } from './audio/presets';
 import { VisualizerHeader } from './components/VisualizerHeader';
@@ -41,18 +44,21 @@ export function App() {
   const [isRunning, setIsRunning] = useState<boolean>(false);
   const [seed, setSeed] = useState<string>(engine.seed);
   const [masterVol, setMasterVol] = useState<number>(engine.masterVolume);
+  const [qualityTier, setQualityTier] = useState<QualityTier>(engine.qualityTier);
 
   // Gameplay State Vector
   const [gameState, setGameState] = useState({ ...engine.state });
 
-  // Synth, Filter, Granular, Spatial, Mod, FX Parameters
+  // Synth, Filter, Granular, Spatial, Mod, FX, Modal, Wavetable Parameters
   const [params, setParams] = useState(() => ({
     synth: { ...engine.params.synth },
     filter: { ...engine.params.filter },
     granular: { ...engine.params.granular },
     spatial: { ...engine.params.spatial },
     modulation: { ...engine.params.modulation },
-    fx: { ...engine.params.fx }
+    fx: { ...engine.params.fx },
+    modal: { ...engine.params.modal },
+    wavetable: { ...engine.params.wavetable }
   }));
 
   // Presets & JSON State
@@ -91,13 +97,16 @@ export function App() {
 
   const syncFromEngine = (presetName = activePresetName) => {
     setSeed(engine.seed);
+    setQualityTier(engine.qualityTier);
     setParams({
       synth: { ...engine.params.synth },
       filter: { ...engine.params.filter },
       granular: { ...engine.params.granular },
       spatial: { ...engine.params.spatial },
       modulation: { ...engine.params.modulation },
-      fx: { ...engine.params.fx }
+      fx: { ...engine.params.fx },
+      modal: { ...engine.params.modal },
+      wavetable: { ...engine.params.wavetable }
     });
     setJsonText(JSON.stringify(engine.exportPreset(presetName), null, 2));
   };
@@ -146,6 +155,13 @@ export function App() {
     await engine.panicReset();
     syncFromEngine();
     showToast('Audio Engine Reset');
+  };
+
+  const handleToggleQualityTier = () => {
+    const next: QualityTier = qualityTier === 'high' ? 'mobile' : 'high';
+    engine.setQualityTier(next);
+    setQualityTier(next);
+    showToast(next === 'mobile' ? 'Mobile Eco DSP (15Hz / EqualPower)' : 'Studio HQ DSP (25Hz / HRTF)');
   };
 
   // Update a parameter in a category
@@ -460,7 +476,7 @@ export function App() {
                 </button>
               </div>
 
-              {/* 7 Grain / Soundscape Textures */}
+              {/* 8 Grain / Soundscape Textures */}
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5 mb-3">
                 {(
                   [
@@ -470,7 +486,8 @@ export function App() {
                     { id: 'glitch', label: 'FRACTAL GLITCH' },
                     { id: 'tape', label: 'TAPE & TEST GEAR' },
                     { id: 'hypnotic', label: 'HYPNOSIS DUB' },
-                    { id: 'liquid', label: 'LIQUID ALCHEMY' }
+                    { id: 'liquid', label: 'LIQUID ALCHEMY' },
+                    { id: 'modal', label: 'MODAL PLATE' }
                   ] as { id: GrainTextureType; label: string }[]
                 ).map((tex) => (
                   <button
@@ -591,6 +608,188 @@ export function App() {
                     step={0.01}
                     value={params.synth.ringModMix}
                     onChange={(e) => updateParam('synth', 'ringModMix', parseFloat(e.target.value))}
+                    className="synth-slider amber-slider"
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* ANNULUS PHYSICAL MODELING (MODAL RESONATOR) */}
+            <div className="bg-[#161922] border border-[#252a38] rounded-lg p-3">
+              <div className="flex justify-between items-center mb-2.5">
+                <span className="font-display-tech text-[11px] font-bold uppercase tracking-wider text-[#f472b6]">
+                  Annulus Physical Modeling (Modal)
+                </span>
+                <div className="flex items-center gap-1.5">
+                  <button
+                    onClick={async () => {
+                      await ensureRunning();
+                      if (!params.modal.enabled) {
+                        updateParam('modal', 'enabled', true);
+                      }
+                      engine.triggerModalStrike(params.synth.baseFreq * 2, 1.0);
+                    }}
+                    className="px-2 py-0.5 rounded font-mono-tech text-[10px] font-bold border bg-[#f472b6]/15 border-[#f472b6]/60 text-[#f472b6] hover:bg-[#f472b6]/25 cursor-pointer"
+                  >
+                    STRIKE
+                  </button>
+                  <button
+                    onClick={() => updateParam('modal', 'enabled', !params.modal.enabled)}
+                    className={`px-2.5 py-0.5 rounded font-mono-tech text-[10px] font-bold border cursor-pointer ${
+                      params.modal.enabled
+                        ? 'bg-[#f472b6]/20 border-[#f472b6] text-[#f472b6]'
+                        : 'bg-[#090b10] border-[#384157] text-[#7f889f]'
+                    }`}
+                  >
+                    {params.modal.enabled ? 'MODAL ON' : 'BYPASSED'}
+                  </button>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-4 gap-1.5 mb-3">
+                {(
+                  [
+                    { id: 'plate', label: 'PLATE' },
+                    { id: 'membrane', label: 'MEMBRANE' },
+                    { id: 'glass', label: 'GLASS' },
+                    { id: 'spring', label: 'SPRING' }
+                  ] as { id: ModalMaterialType; label: string }[]
+                ).map((mat) => (
+                  <button
+                    key={mat.id}
+                    onClick={() => updateParam('modal', 'material', mat.id)}
+                    className={`py-1.5 px-1.5 rounded font-mono-tech text-[9px] font-semibold border transition cursor-pointer ${
+                      params.modal.material === mat.id
+                        ? 'bg-[#f472b6]/20 border-[#f472b6] text-[#f472b6]'
+                        : 'bg-[#090b10] border-[#252a38] text-[#7f889f] hover:text-[#e2e6f0]'
+                    }`}
+                  >
+                    {mat.label}
+                  </button>
+                ))}
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="flex flex-col gap-1">
+                  <div className="flex justify-between font-mono-tech text-[11px]">
+                    <span className="text-[#e2e6f0]">Modal Resonator Mix</span>
+                    <span className="text-[#f472b6]">{params.modal.mix.toFixed(2)}</span>
+                  </div>
+                  <input
+                    type="range"
+                    min={0}
+                    max={1}
+                    step={0.01}
+                    value={params.modal.mix}
+                    onChange={(e) => updateParam('modal', 'mix', parseFloat(e.target.value))}
+                    className="synth-slider"
+                  />
+                </div>
+
+                <div className="flex flex-col gap-1">
+                  <div className="flex justify-between font-mono-tech text-[11px]">
+                    <span className="text-[#e2e6f0]">Bow / Scrape Pressure</span>
+                    <span className="text-[#f472b6]">{params.modal.bowPressure.toFixed(2)}</span>
+                  </div>
+                  <input
+                    type="range"
+                    min={0}
+                    max={1}
+                    step={0.01}
+                    value={params.modal.bowPressure}
+                    onChange={(e) => updateParam('modal', 'bowPressure', parseFloat(e.target.value))}
+                    className="synth-slider"
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* ZEBRALETTE SPLINE WAVETABLE & WAVEFOLDER */}
+            <div className="bg-[#161922] border border-[#252a38] rounded-lg p-3">
+              <div className="flex justify-between items-center mb-2.5">
+                <span className="font-display-tech text-[11px] font-bold uppercase tracking-wider text-[#fb923c]">
+                  Zebralette Spline Wavetable & Wavefolder
+                </span>
+                <button
+                  onClick={() => updateParam('wavetable', 'enabled', !params.wavetable.enabled)}
+                  className={`px-2.5 py-0.5 rounded font-mono-tech text-[10px] font-bold border cursor-pointer ${
+                    params.wavetable.enabled
+                      ? 'bg-[#fb923c]/20 border-[#fb923c] text-[#fb923c]'
+                      : 'bg-[#090b10] border-[#384157] text-[#7f889f]'
+                  }`}
+                >
+                  {params.wavetable.enabled ? 'WAVETABLE ON' : 'BYPASSED'}
+                </button>
+              </div>
+
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5 mb-3">
+                {(
+                  [
+                    { id: 'neuro_spline', label: 'NEURO SPLINE' },
+                    { id: 'spectral_formant', label: 'SPECTRAL FORMANT' },
+                    { id: 'acid_fold', label: 'ACID FOLD' },
+                    { id: 'metallic_pwm', label: 'METALLIC PWM' }
+                  ] as { id: WavetableBankType; label: string }[]
+                ).map((bank) => (
+                  <button
+                    key={bank.id}
+                    onClick={() => updateParam('wavetable', 'bank', bank.id)}
+                    className={`py-1.5 px-1.5 rounded font-mono-tech text-[9px] font-semibold border transition cursor-pointer ${
+                      params.wavetable.bank === bank.id
+                        ? 'bg-[#fb923c]/20 border-[#fb923c] text-[#fb923c]'
+                        : 'bg-[#090b10] border-[#252a38] text-[#7f889f] hover:text-[#e2e6f0]'
+                    }`}
+                  >
+                    {bank.label}
+                  </button>
+                ))}
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div className="flex flex-col gap-1">
+                  <div className="flex justify-between font-mono-tech text-[11px]">
+                    <span className="text-[#e2e6f0]">Wavetable Mix</span>
+                    <span className="text-[#fb923c]">{params.wavetable.mix.toFixed(2)}</span>
+                  </div>
+                  <input
+                    type="range"
+                    min={0}
+                    max={1}
+                    step={0.01}
+                    value={params.wavetable.mix}
+                    onChange={(e) => updateParam('wavetable', 'mix', parseFloat(e.target.value))}
+                    className="synth-slider amber-slider"
+                  />
+                </div>
+
+                <div className="flex flex-col gap-1">
+                  <div className="flex justify-between font-mono-tech text-[11px]">
+                    <span className="text-[#e2e6f0]">Spline Morph Pos</span>
+                    <span className="text-[#fb923c]">{params.wavetable.position.toFixed(2)}</span>
+                  </div>
+                  <input
+                    type="range"
+                    min={0}
+                    max={1}
+                    step={0.01}
+                    value={params.wavetable.position}
+                    onChange={(e) => updateParam('wavetable', 'position', parseFloat(e.target.value))}
+                    className="synth-slider amber-slider"
+                  />
+                </div>
+
+                <div className="flex flex-col gap-1">
+                  <div className="flex justify-between font-mono-tech text-[11px]">
+                    <span className="text-[#e2e6f0]">Wavefold Drive</span>
+                    <span className="text-[#fb923c]">{params.wavetable.foldDrive.toFixed(2)}</span>
+                  </div>
+                  <input
+                    type="range"
+                    min={0}
+                    max={1}
+                    step={0.01}
+                    value={params.wavetable.foldDrive}
+                    onChange={(e) => updateParam('wavetable', 'foldDrive', parseFloat(e.target.value))}
                     className="synth-slider amber-slider"
                   />
                 </div>
@@ -942,6 +1141,57 @@ export function App() {
                       />
                     </div>
                   </div>
+
+                  {/* Modal & Wavetable Fine-Tuning */}
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2 border-t border-[#252a38]">
+                    <div className="flex flex-col gap-1">
+                      <div className="flex justify-between font-mono-tech text-[11px]">
+                        <span className="text-[#e2e6f0]">Modal Inharmonicity</span>
+                        <span className="text-[#f472b6]">{params.modal.inharmonicity.toFixed(2)}</span>
+                      </div>
+                      <input
+                        type="range"
+                        min={0}
+                        max={1}
+                        step={0.01}
+                        value={params.modal.inharmonicity}
+                        onChange={(e) => updateParam('modal', 'inharmonicity', parseFloat(e.target.value))}
+                        className="synth-slider"
+                      />
+                    </div>
+
+                    <div className="flex flex-col gap-1">
+                      <div className="flex justify-between font-mono-tech text-[11px]">
+                        <span className="text-[#e2e6f0]">Modal Damping</span>
+                        <span className="text-[#f472b6]">{params.modal.damping.toFixed(2)}</span>
+                      </div>
+                      <input
+                        type="range"
+                        min={0}
+                        max={1}
+                        step={0.01}
+                        value={params.modal.damping}
+                        onChange={(e) => updateParam('modal', 'damping', parseFloat(e.target.value))}
+                        className="synth-slider"
+                      />
+                    </div>
+
+                    <div className="flex flex-col gap-1">
+                      <div className="flex justify-between font-mono-tech text-[11px]">
+                        <span className="text-[#e2e6f0]">Wavetable Spectral Tilt</span>
+                        <span className="text-[#fb923c]">{params.wavetable.spectralTilt.toFixed(2)}</span>
+                      </div>
+                      <input
+                        type="range"
+                        min={-1}
+                        max={1}
+                        step={0.02}
+                        value={params.wavetable.spectralTilt}
+                        onChange={(e) => updateParam('wavetable', 'spectralTilt', parseFloat(e.target.value))}
+                        className="synth-slider amber-slider"
+                      />
+                    </div>
+                  </div>
                 </div>
               )}
             </div>
@@ -955,13 +1205,26 @@ export function App() {
           <div className="flex flex-col gap-3">
             {/* 3D BINAURAL & HRTF SPATIALIZER */}
             <div className="bg-[#161922] border border-[#252a38] rounded-lg p-3">
-              <div className="flex justify-between items-center mb-2.5">
+              <div className="flex flex-wrap justify-between items-center gap-2 mb-2.5">
                 <span className="font-display-tech text-[11px] font-bold uppercase tracking-wider text-[#b886ff]">
                   3D HRTF Spatial Orbit & Space
                 </span>
-                <span className="font-mono-tech text-[10px] text-[#38e2c7]">
-                  HRTF 360° // DOPPLER ACTIVE
-                </span>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={handleToggleQualityTier}
+                    className={`px-2 py-0.5 rounded font-mono-tech text-[9px] font-bold border cursor-pointer transition ${
+                      qualityTier === 'mobile'
+                        ? 'bg-[#34d399]/15 border-[#34d399] text-[#34d399]'
+                        : 'bg-[#090b10] border-[#384157] text-[#38e2c7] hover:border-[#38e2c7]'
+                    }`}
+                    title="Toggle Mobile Game CPU / HRTF Eco Mode"
+                  >
+                    {qualityTier === 'mobile' ? 'MOBILE ECO (15Hz)' : 'STUDIO HQ (HRTF)'}
+                  </button>
+                  <span className="font-mono-tech text-[10px] text-[#38e2c7] hidden sm:inline">
+                    DOPPLER ACTIVE
+                  </span>
+                </div>
               </div>
 
               <Spatial3DRadar
@@ -1302,6 +1565,8 @@ export function App() {
                       { id: 'tape', label: 'TAPE/NOISE' },
                       { id: 'hypnotic', label: 'HYPNOTIC' },
                       { id: 'liquid', label: 'LIQUID' },
+                      { id: 'modal', label: 'MODAL' },
+                      { id: 'heavy', label: 'HEAVY WT' },
                       { id: 'custom', label: 'SAVED' }
                     ] as { id: PresetCategory | 'all'; label: string }[]
                   ).map((cat) => (
@@ -1355,6 +1620,10 @@ export function App() {
                       ? 'text-[#60a5fa] border-[#60a5fa]/40 bg-[#60a5fa]/10'
                       : preset.category === 'liquid'
                       ? 'text-[#34d399] border-[#34d399]/40 bg-[#34d399]/10'
+                      : preset.category === 'modal'
+                      ? 'text-[#f472b6] border-[#f472b6]/40 bg-[#f472b6]/10'
+                      : preset.category === 'heavy'
+                      ? 'text-[#fb923c] border-[#fb923c]/40 bg-[#fb923c]/10'
                       : preset.category === 'custom'
                       ? 'text-[#f59e0b] border-[#f59e0b]/40 bg-[#f59e0b]/10'
                       : 'text-[#9ca3af] border-[#384157] bg-[#101218]';
