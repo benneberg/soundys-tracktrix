@@ -1,1 +1,124 @@
+@import "tailwindcss";
 
+:root {
+  --bg-deep: #07080b;
+  --bg-panel: #101218;
+  --bg-card: #161922;
+  --bg-well: #090b10;
+  --border: #252a38;
+  --border-hi: #384157;
+  --text-main: #e2e6f0;
+  --text-muted: #7f889f;
+  --text-dim: #4b5563;
+  --accent: #b886ff;
+  --accent-dim: rgba(184, 134, 255, 0.16);
+  --cyan: #38e2c7;
+  --cyan-dim: rgba(56, 226, 199, 0.15);
+  --danger: #ff4d6d;
+  --danger-dim: rgba(255, 77, 109, 0.18);
+  --warn: #f59e0b;
+  --warn-dim: rgba(245, 158, 11, 0.16);
+  --font-mono: 'JetBrains Mono', 'SFMono-Regular', Consolas, monospace;
+  --font-display: 'Space Grotesk', -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+  -webkit-tap-highlight-color: transparent;
+}
+
+html, body {
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  height: 100%;
+  background-color: var(--bg-deep);
+  color: var(--text-main);
+  font-family: var(--font-sans);
+  overflow: hidden;
+  touch-action: manipulation;
+  user-select: none;
+}
+
+.font-mono-tech {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+.font-display-tech {
+  font-family: var(--font-display);
+}
+
+/* Custom Hardware Range Sliders */
+input[type="range"].synth-slider {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 22px;
+  background: transparent;
+  margin: 0;
+  cursor: pointer;
+}
+
+input[type="range"].synth-slider:focus {
+  outline: none;
+}
+
+input[type="range"].synth-slider::-webkit-slider-runnable-track {
+  height: 6px;
+  border-radius: 3px;
+  background: #080a0f;
+  border: 1px solid #2b3245;
+  box-shadow: inset 0 1px 3px rgba(0,0,0,0.8);
+}
+
+input[type="range"].synth-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--accent);
+  border: 2px solid #f4f6fb;
+  margin-top: -6px;
+  box-shadow: 0 0 10px rgba(184, 134, 255, 0.6), 0 2px 4px rgba(0, 0, 0, 0.6);
+  transition: transform 0.1s ease, background-color 0.15s ease;
+}
+
+input[type="range"].synth-slider:active::-webkit-slider-thumb {
+  transform: scale(1.18);
+  background: var(--cyan);
+  box-shadow: 0 0 14px rgba(56, 226, 199, 0.85);
+}
+
+input[type="range"].synth-slider.cyan-slider::-webkit-slider-thumb {
+  background: var(--cyan);
+  box-shadow: 0 0 10px rgba(56, 226, 199, 0.55);
+}
+
+input[type="range"].synth-slider.amber-slider::-webkit-slider-thumb {
+  background: var(--warn);
+  box-shadow: 0 0 10px rgba(245, 158, 11, 0.55);
+}
+
+input[type="range"].synth-slider.danger-slider::-webkit-slider-thumb {
+  background: var(--danger);
+  box-shadow: 0 0 10px rgba(255, 77, 109, 0.55);
+}
+
+/* Subtle dark scrollbars */
+::-webkit-scrollbar {
+  width: 5px;
+  height: 5px;
+}
+::-webkit-scrollbar-track {
+  background: #090b10;
+}
+::-webkit-scrollbar-thumb {
+  background: #252a38;
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #384157;
+}
